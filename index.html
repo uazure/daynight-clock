@@ -4,7 +4,9 @@
 <title>24 hours clock (dev)</title>
 
 <style type='text/css'>
-canvas {width: 800px; height: 800px; border: 1px solid red;}
+/*
+ * canvas {width: 800px; height: 800px; border: 1px solid red;}
+ */
 </style>
 
 </head>
@@ -21,7 +23,7 @@ canvas {width: 800px; height: 800px; border: 1px solid red;}
 	</select><br />
 	
 </div>
-<canvas id='canvas'>Canvas</canvas>
+<canvas id='canvas' width='800' height='800'>Canvas</canvas>
 <div id='log'></div>
 
 <script type='text/javascript'>
@@ -30,9 +32,12 @@ var ClockClass = function(longitude, latitude, time) {
 	this.longitude=longitude;
 	this.latitude=latitude;
 	this.time=new Date(time);
+	var canvasElement=document.getElementById('canvas');
+	this.canvas=canvasElement.getContext("2d");
+
 	this.getSunrise=function() {
 		//FIXME: sunrise must be calculated using longitude and latitude
-		var surise=new Date();
+		var sunrise=new Date();
 		sunrise.setHours(6,43);
 		return sunrise;
 	}
@@ -57,11 +62,28 @@ var ClockClass = function(longitude, latitude, time) {
 		var degree=seconds/10;
 		return degree;
 	}
+	
+	this.render=function() {
+		this.canvas.beginPath();
+		this.canvas.arc(400,400,300,0,2*Math.PI);
+		this.canvas.stroke();
+	}
+	
+	
 };
 
+var date=new Date();
+var clock = new ClockClass(50,36,date);
+clock.render();
 
-var canvas=document.getElementById('canvas');
+
+
+
+
 console.log(canvas);
+console.log(clock);
+console.log(clock.getSunrise());
+console.log(clock.getSunset());
 
 
 
