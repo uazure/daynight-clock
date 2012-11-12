@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<title>24 hours clock (dev)</title>
+
+<style type='text/css'>
+canvas {width: 800px; height: 800px; border: 1px solid red;}
+</style>
+
+</head>
+
+<body>
+<div>
+	<input size='8' id='latitude' name='latitude' value='50.0000' /> <select name='latitude-hemisphere'>
+		<option value='N' selected='selected'>N</option>
+		<option value='S'>S</option>
+	</select><br />
+	<input size='8' id='longitude' name='longitude' value='36.0000' /> <select name='longitude-hemisphere'>
+		<option selected='selected' value='E'>E</option>
+		<option value='W'>W</option>
+	</select><br />
+	
+</div>
+<canvas id='canvas'>Canvas</canvas>
+<div id='log'></div>
+
+<script type='text/javascript'>
+
+var ClockClass = function(longitude, latitude, time) {
+	this.longitude=longitude;
+	this.latitude=latitude;
+	this.time=new Date(time);
+	this.getSunrise=function() {
+		//FIXME: sunrise must be calculated using longitude and latitude
+		var surise=new Date();
+		sunrise.setHours(6,43);
+		return sunrise;
+	}
+	this.getSunset=function() {
+		//FIXME: sunset must be calculated
+		var sunset=new Date();
+		sunset.setHours(15,55);
+		return sunset;
+	}
+	
+	this.hourDegree=function(time) {
+		alert ('type of time is '+typeof (time));
+		//if (typeof (time) != )
+		var minutes=time.getHours()*60+time.getMinutes();
+		//degree = minutes / (24*60) / 360
+		var degree=minutes/4;
+		return degree;		
+	}
+	
+	this.minuteDegree=function(time) {
+		var seconds=time.getMinutes()*60+time.getSeconds();
+		var degree=seconds/10;
+		return degree;
+	}
+};
+
+
+var canvas=document.getElementById('canvas');
+console.log(canvas);
+
+
+
+
+</script>
+
+</body>
+</html>
+
