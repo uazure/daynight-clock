@@ -114,7 +114,7 @@ var ClockClass = function(longitude, latitude, time) {
 	this.update=function() {
 		console.log('Clock: update()');
 		this.canvas.clearRect(0,0, this.canvasElement.width, this.canvasElement.height);
-		this.time=new Date(time);
+		this.time=new Date();
 		this.render();
 	}
 	
