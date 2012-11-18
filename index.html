@@ -24,7 +24,11 @@
 	
 </div>
 <canvas id='canvas' width='800' height='800'>Canvas</canvas>
+
 <div id='log'></div>
+<nav id='controls'>
+	<button id='update-clock'>Update</button>
+</nav>
 
 <script type='text/javascript'>
 
@@ -32,8 +36,19 @@ var ClockClass = function(longitude, latitude, time) {
 	this.longitude=longitude;
 	this.latitude=latitude;
 	this.time=new Date(time);
-	var canvasElement=document.getElementById('canvas');
-	this.canvas=canvasElement.getContext("2d");
+	this.canvasElement=document.getElementById('canvas');
+	this.canvas=this.canvasElement.getContext("2d");
+	this.centerPoint=[];
+	this.centerPoint[0]=this.canvasElement.width/2;
+	this.centerPoint[1]=this.canvasElement.height/2;
+	var pointerLength = {
+		hour: 200,
+		minute: 250,
+	};
+	var pointerWidth = {
+		hour: 8,
+		minute:2
+	}
 
 	this.getSunrise=function() {
 		//FIXME: sunrise must be calculated using longitude and latitude
@@ -49,7 +64,7 @@ var ClockClass = function(longitude, latitude, time) {
 	}
 	
 	this.hourDegree=function(time) {
-		alert ('type of time is '+typeof (time));
+		//alert ('type of time is '+typeof (time));
 		//if (typeof (time) != )
 		var minutes=time.getHours()*60+time.getMinutes();
 		//degree = minutes / (24*60) / 360
@@ -63,10 +78,44 @@ var ClockClass = function(longitude, latitude, time) {
 		return degree;
 	}
 	
-	this.render=function() {
+	this.renderBody=function() {
 		this.canvas.beginPath();
+		this.canvas.lineWidth=1;
 		this.canvas.arc(400,400,300,0,2*Math.PI);
 		this.canvas.stroke();
+	}
+	
+	this.renderPointers=function() {
+		var hourDegree=this.hourDegree(time);
+		var rad=hourDegree/180*Math.PI;
+		var targetX=this.centerPoint[0]+pointerLength.hour*Math.sin(rad);
+		var targetY=this.centerPoint[1]-pointerLength.hour*Math.cos(rad);
+		
+		this.canvas.beginPath();
+		this.canvas.moveTo(this.centerPoint[0],this.centerPoint[1]);
+		this.canvas.lineWidth=8;
+		this.canvas.lineTo(targetX,targetY);
+		
+		rad=this.minuteDegree(time)/180*Math.PI;
+		targetX=this.centerPoint[0]+pointerLength.minute*Math.sin(rad);
+		targetY=this.centerPoint[1]-pointerLength.minute*Math.cos(rad);
+		this.canvas.moveTo(this.centerPoint[0],this.centerPoint[1]);
+		this.canvas.lineTo(targetX,targetY);
+		
+		this.canvas.stroke();
+	}
+	
+	this.render=function() {
+		console.log('Clock: render()');
+		this.renderBody();
+		this.renderPointers();		
+	}
+	
+	this.update=function() {
+		console.log('Clock: update()');
+		this.canvas.clearRect(0,0, this.canvasElement.width, this.canvasElement.height);
+		this.time=new Date(time);
+		this.render();
 	}
 	
 	
@@ -76,6 +125,11 @@ var date=new Date();
 var clock = new ClockClass(50,36,date);
 clock.render();
 
+
+
+document.getElementById('update-clock').addEventListener('click',function() {
+	clock.update()
+	});
 
 
 
