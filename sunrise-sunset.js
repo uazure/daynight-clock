@@ -44,13 +44,16 @@ var SunriseSunset = function( utcFullYear, utcMonth, utcDay, latitude, longitude
                               //   civil        = 96 degrees
                               //   nautical     = 102 degrees
                               //   astronomical = 108 degrees
+	//this.zenith = 96;						  
+	//this.zenith = 102;
  
     this.utcFullYear = utcFullYear;
     this.utcMonth = utcMonth;
     this.utcDay = utcDay;
     this.latitude = latitude;
     this.longitude = longitude;
- 
+	this.mode = 'official';
+	this.modes = { official: 90+50/60, civil: 96, nautical: 102, astronomical: 108 };
     this.rising = true; // set to true for sunrise, false for sunset
     this.lngHour = this.longitude / 15;
 };
@@ -120,7 +123,9 @@ SunriseSunset.prototype = {
     },
  
     localMeanTime: function() {
-        var cosH = (this.cos(this.zenith) - (this.sinDec() * this.sin(this.latitude)))
+		var zenith = this.modes[this.mode];
+		console.log('Mode '+this.mode+', zenith: '+zenith);
+        var cosH = (this.cos(zenith) - (this.sinDec() * this.sin(this.latitude)))
             / (this.cosDec() * this.cos(this.latitude));
  
         if (cosH >  1) {
@@ -253,9 +258,9 @@ function SunriseSunsetTest() {
             if ( ! passed ) tests_failed++;
            
             /*jsl:ignore*/
-            print( city_name, t.year, t.month, t.day, t.utcHours, "passed:", passed );
+            console.log( city_name, t.year, t.month, t.day, t.utcHours, "passed:", passed );
             if ( ! passed ) {
-                print( "sunriseUtcHours=" + ss.sunriseUtcHours() +
+                console.log( "sunriseUtcHours=" + ss.sunriseUtcHours() +
                         ", sunsetUtcHours=" + ss.sunsetUtcHours() );
             }
  
@@ -264,6 +269,6 @@ function SunriseSunsetTest() {
     }
  
     /*jsl:ignore*/
-    print( "tests: " + tests_run, "failed: " + tests_failed );
+    console.log( "tests: " + tests_run, "failed: " + tests_failed );
     /*jsl:end*/
 }

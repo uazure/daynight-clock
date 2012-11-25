@@ -31,6 +31,7 @@
 </nav>
 
 <script type='text/javascript'>
+//SunriseSunsetTest();
 
 var ClockClass = function(canvas, longitude, latitude, time) {
 	this.longitude=longitude;
@@ -42,26 +43,32 @@ var ClockClass = function(canvas, longitude, latitude, time) {
 		x: canvas.width/2,
 		y: canvas.height/2
 	};
-	this.pointerLength = {
-		hour: 200,
-		minute: 250,
-	};
+	console.log('center point of clock: %o', this.centerPoint);
+
 	this.settings = {
 		clockRadius: 300,
-		tickRadius: 200,
-		tickLength: 10,
-		hourLabelRadius: 250
-		
+		tickRadius: 250,
+		tickLength: -10,
+		hourLabelRadius: 275,
+		minuteLabelRadius: 200,
+		hourLabelFont: "bold 25px Arial",
+		minuteLabelFont: "normal 20px Arial",
+		hourPointerLength: 250,
+		hourPointerWidth: 8,
+		minutePointerLength: 175,
+		minutePointerWidth: 2
 	};
+	console.log('init geolocation with longitude '+longitude+' and latitude '+latitude);
 	this.geolocation=new SunriseSunset(
 		time.getUTCFullYear(),
-		time.getUTCMonth(),
+		time.getUTCMonth()+1, //+1 required for month to be in range 1..12 insted of 0..11
 		time.getUTCDate(),
 		latitude,
-		longitude);
+		longitude		
+		);
 		
 	this.gmtOffset=time.getTimezoneOffset()/(-60);
-	//alert('gmt offset: '+this.gmtOffset);
+	console.log('gmt offset: '+this.gmtOffset);
 	
 };
 
@@ -74,29 +81,162 @@ ClockClass.prototype = {
 	},
 	renderPointers: function() {
 		var hourAngle=this.hourAngle(this.time);
-		var point=this.toDecart(this.pointerLength.hour, hourAngle);
+		var point=this.toDecart(this.settings.hourPointerLength, hourAngle);
 		point.x+=this.centerPoint.x;
 		point.y+=this.centerPoint.y;
 		console.log(point);
 		//var targetY=this.centerPoint[1]-this.pointerLength.hour*Math.cos(hourAngle);
 		
 		this.canvas.beginPath();
+		this.canvas.lineWidth=this.settings.hourPointerWidth;
 		this.canvas.moveTo(this.centerPoint.x, this.centerPoint.y);
-		this.canvas.lineWidth=8;
 		this.canvas.lineTo(point.x, point.y);
+		this.canvas.stroke();
 		
+		this.canvas.beginPath();
+		this.canvas.lineWidth=this.settings.minutePointerWidth;
 		var minuteAngle=this.minuteAngle(this.time);
-		point=this.toDecart(this.pointerLength.minute, minuteAngle);
+		point=this.toDecart(this.settings.minutePointerLength, minuteAngle);
 		point.x+=this.centerPoint.x;
 		point.y+=this.centerPoint.y;
 		this.canvas.moveTo(this.centerPoint.x,this.centerPoint.y);
 		this.canvas.lineTo(point.x, point.y);
 		
 		this.canvas.stroke();
+		this.canvas.beginPath();
 		this.canvas.arc(this.centerPoint.x, this.centerPoint.y, 10, 0, 2*Math.PI);
 		this.canvas.fill();
 	},
 	
+
+	
+	renderBody: function() {
+		var canvas=this.canvas;
+		canvas.save();
+		//translate center of canvas to center of the clock
+		canvas.translate(this.centerPoint.x, this.centerPoint.y);
+		
+		//draw night sector:
+		this.geolocation.mode='official'; //get sunrinse and sunset as we see it
+		var sunriseHour=this.geolocation.sunriseLocalHours(this.gmtOffset);
+		var sunsetHour=this.geolocation.sunsetLocalHours(this.gmtOffset);
+		this.geolocation.mode='civil'; //get time when it becames dark enough
+		var sunriseHour2=this.geolocation.sunriseLocalHours(this.gmtOffset);
+		var sunsetHour2=this.geolocation.sunsetLocalHours(this.gmtOffset);
+		//Hour2 is always the lighter day time than cooresponding Hour
+		console.log('sunset, sunrise: '+sunsetHour+'..'+sunsetHour2+', '+sunriseHour+'..'+sunriseHour2);
+		
+		var sunsetAngle=sunsetHour/24*360/180*Math.PI;
+		var sunsetAngle2=sunsetHour2/24*360/180*Math.PI;
+		var sunriseAngle=sunriseHour/24*360/180*Math.PI;
+		var sunriseAngle2=sunriseHour2/24*360/180*Math.PI;
+		
+		var sunsetPoint=this.toDecart(this.settings.clockRadius,sunsetAngle);
+		var sunsetPoint2=this.toDecart(this.settings.clockRadius,sunsetAngle2);
+		var sunrisePoint=this.toDecart(this.settings.clockRadius,sunriseAngle);
+		var sunrisePoint2=this.toDecart(this.settings.clockRadius,sunriseAngle2);
+		
+		canvas.beginPath();
+		canvas.moveTo(0,0);
+		canvas.arc(0, 0, this.settings.clockRadius, sunsetAngle2-Math.PI/2, sunriseAngle2-Math.PI/2 );
+		canvas.fillStyle='#545465';
+		canvas.fill();
+		
+		canvas.save();
+		canvas.rotate(sunriseAngle2-0.01);
+		var sunriseLength=this.length(sunrisePoint, sunrisePoint2);
+		console.log('Sunrise gradient len: '+sunriseLength);
+		var sunriseGradient=canvas.createLinearGradient(0, 0, sunriseLength, 0);
+		sunriseGradient.addColorStop(0, '#545465');
+		sunriseGradient.addColorStop(1, '#ffffff');
+		canvas.beginPath();
+		canvas.moveTo(0,0);
+		canvas.arc(0,0, this.settings.clockRadius, -Math.PI/2, -Math.PI/2+sunriseAngle-sunriseAngle2);
+		canvas.fillStyle=sunriseGradient;
+		canvas.fill();
+		canvas.restore();
+		
+		canvas.save();
+		canvas.rotate(sunsetAngle2+0.01);
+		var sunsetLength=this.length(sunsetPoint, sunsetPoint2);
+		console.log('Sunset gradient len: '+sunsetLength);
+		var sunsetGradient=canvas.createLinearGradient(0, 0, -sunsetLength, 0);
+		sunsetGradient.addColorStop(0, '#545465');
+		sunsetGradient.addColorStop(1, '#ffffff');
+		canvas.beginPath();
+		canvas.moveTo(0,0);
+		canvas.arc(0,0, this.settings.clockRadius, -Math.PI/2-(sunsetAngle2-sunsetAngle), -Math.PI/2);
+		canvas.fillStyle=sunsetGradient;
+		canvas.fill();
+		
+		canvas.restore();
+		
+		
+		canvas.lineWidth=1;
+		canvas.beginPath();
+		canvas.arc(0,0,this.settings.clockRadius,0,2*Math.PI);
+		canvas.stroke();
+		
+		canvas.fillStyle='#000000';
+		//draw hours on clock
+		//prepare text positioning properties
+		canvas.font = this.settings.hourLabelFont;
+		canvas.textBaseline='middle';
+		canvas.textAlign='center';
+		for (var i=0; i<24; ++i) {
+			this.canvas.beginPath();
+			var angle=360/24*i/180*Math.PI;
+			var tickLength=this.settings.tickLength;
+			
+			var hourLabelPoint=this.toDecart(this.settings.hourLabelRadius, angle);
+			if (i%4==0) {
+				canvas.lineWidth=3;
+				tickLength*=3;
+			} else if (i%2==0) {
+				tickLength*=5;
+				canvas.lineWidth=1;
+			} else {
+				canvas.lineWidth=1;
+			}
+			
+			
+			var startPoint=this.toDecart(this.settings.tickRadius, angle);
+			var endPoint=this.toDecart(tickLength, angle);
+			
+			//draw hour tick
+			this.canvas.moveTo(startPoint.x, startPoint.y);
+			this.canvas.lineTo(endPoint.x+startPoint.x, endPoint.y+startPoint.y);
+			this.canvas.stroke();
+			//draw hour label
+			this.canvas.fillText(i, hourLabelPoint.x, hourLabelPoint.y);
+			
+		}
+		//draw minutes on clock
+		canvas.font = this.settings.minuteLabelFont;
+		for (var i=0; i<6; ++i) {
+			this.canvas.beginPath();
+			var angle=360/6*i/180*Math.PI;
+			var minuteLabelPoint=this.toDecart(this.settings.minuteLabelRadius, angle);
+			this.canvas.fillText(i*10, minuteLabelPoint.x, minuteLabelPoint.y);
+		}
+		
+		//restore center of canvas to be at original position.
+		this.canvas.restore();
+	},
+	//helper function section
+	toDecart: function (radius, angle) {
+		var decart={
+			x: radius*Math.sin(angle),
+			y: -radius*Math.cos(angle),
+		};
+		return decart;
+	},
+	length: function(point1, point2) {
+		console.log('calculating length between points %o and %o',point1, point2);
+		var squaredLength=Math.pow((point1.x-point2.x),2)+Math.pow((point1.y-point2.y),2);
+		console.log('Squared length: '+squaredLength);
+		return Math.sqrt(squaredLength);	
+	},
 	hourAngle: function(time) {
 		//alert ('type of time is '+typeof (time));
 		//if (typeof (time) != )
@@ -111,164 +251,11 @@ ClockClass.prototype = {
 		var angle=seconds/10/180*Math.PI;
 		return angle;
 	},
-	
-	renderBody: function() {
-		var canvas=this.canvas;
-		canvas.save();
-		canvas.translate(400,400);
-		
-		canvas.beginPath();
-		canvas.lineWidth=1;
-		canvas.arc(0,0,this.settings.clockRadius,0,2*Math.PI);
-		canvas.stroke();
-		//prepare text positioning properties
-		canvas.font = "normal 20px Arial";
-		canvas.textBaseline='middle';
-		canvas.textAlign='center';
-		
-		//draw night sector:
-		var sunsetHour=this.geolocation.sunsetLocalHours(this.gmtOffset);
-		var sunriseHour=this.geolocation.sunriseLocalHours(this.gmtOffset);
-		//alert('set, rise: '+sunsetHour+', '+sunriseHour);
-		var sunsetAngle=sunsetHour/24*360/180*Math.PI;
-		var sunriseAngle=sunriseHour/24*360/180*Math.PI;
-		
-		var sunsetPoint=this.toDecart(this.settings.clockRadius,sunsetAngle);
-		var sunrisePoint=this.toDecart(this.settings.clockRadius,sunriseAngle);
-		
-		canvas.beginPath();
-		canvas.moveTo(0,0);
-		canvas.lineTo(sunsetPoint.x, sunsetPoint.y);
-		//canvas.arcTo(sunrisePoint.x, sunrisePoint.y, sunsetPoint.x, sunsetPoint.y, this.settings.clockRadius);
-		canvas.arc(0, 0, this.settings.clockRadius, sunsetAngle-Math.PI/2, sunriseAngle-Math.PI/2 );
-		//canvas.lineTo(0,0);
-		canvas.closePath();
-		canvas.fillStyle='#545465';
-		canvas.fill();
-		//canvas.stroke();
-		canvas.fillStyle='#000000';
-		
-		//draw hours on clock
-		
-		for (var i=0; i<24; ++i) {
-			this.canvas.beginPath();
-			var angle=360/24*i/180*Math.PI;
-			var startPoint=this.toDecart(this.settings.tickRadius, angle);
-			var endPoint=this.toDecart(this.settings.tickLength, angle);
-			var hourLabelPoint=this.toDecart(this.settings.hourLabelRadius, angle);
-			
-			
-			//draw hour tick
-			this.canvas.moveTo(startPoint.x, startPoint.y);
-			this.canvas.lineTo(endPoint.x+startPoint.x, endPoint.y+startPoint.y);
-			this.canvas.stroke();
-			//draw hour label
-			this.canvas.fillText(i, hourLabelPoint.x, hourLabelPoint.y);
-			
-		}
-		this.canvas.restore();
-	},
-	
-	toDecart: function (radius, angle) {
-		var decart={
-			x: radius*Math.sin(angle),
-			y: -radius*Math.cos(angle),
-		};
-		return decart;
-	},
-	
-
 };
-/*
-	this.canvasElement=document.getElementById('canvas');
-	this.canvas=this.canvasElement.getContext("2d");
-	this.centerPoint=[];
-	this.centerPoint[0]=this.canvasElement.width/2;
-	this.centerPoint[1]=this.canvasElement.height/2;
-	var pointerLength = {
-		hour: 200,
-		minute: 250,
-	};
-	var pointerWidth = {
-		hour: 8,
-		minute:2
-	}
 
-	this.getSunrise=function() {
-		//FIXME: sunrise must be calculated using longitude and latitude
-		var sunrise=new Date();
-		sunrise.setHours(6,43);
-		return sunrise;
-	}
-	this.getSunset=function() {
-		//FIXME: sunset must be calculated
-		var sunset=new Date();
-		sunset.setHours(15,55);
-		return sunset;
-	}
-	
-	this.hourAngle=function(time) {
-		//alert ('type of time is '+typeof (time));
-		//if (typeof (time) != )
-		var minutes=time.getHours()*60+time.getMinutes();
-		//degree = minutes / (24*60) / 360 / 180 * PI
-		var angle=minutes/4/180*Math.PI;
-		return angle;		
-	}
-	
-	this.minuteAngle=function(time) {
-		var seconds=time.getMinutes()*60+time.getSeconds();
-		var angle=seconds/10/180*Math.PI;
-		return angle;
-	}
-	
-	this.renderBody=function() {
-		this.canvas.beginPath();
-		this.canvas.lineWidth=1;
-		this.canvas.arc(400,400,300,0,2*Math.PI);
-		this.canvas.stroke();
-	}
-	
-	this.renderPointers=function() {
-		var hourAngle=this.hourAngle(time);
-		var targetX=this.centerPoint[0]+pointerLength.hour*Math.sin(hourAngle);
-		var targetY=this.centerPoint[1]-pointerLength.hour*Math.cos(hourAngle);
-		
-		this.canvas.beginPath();
-		this.canvas.moveTo(this.centerPoint[0],this.centerPoint[1]);
-		this.canvas.lineWidth=8;
-		this.canvas.lineTo(targetX,targetY);
-		
-		var minuteAngle=this.minuteAngle(time);
-		targetX=this.centerPoint[0]+pointerLength.minute*Math.sin(minuteAngle);
-		targetY=this.centerPoint[1]-pointerLength.minute*Math.cos(minuteAngle);
-		this.canvas.moveTo(this.centerPoint[0],this.centerPoint[1]);
-		this.canvas.lineTo(targetX,targetY);
-		
-		this.canvas.stroke();
-	}
-	
-	this.render=function() {
-	
-	}
-	
-	this.update=function() {
-		
-		console.log('Clock: update()');
-		
-		console.log('Time was '+this.time);
-		this.time=new Date();
-		console.log('Current time is '+this.time);
-		window.requestAnimationFrame(this.render,30);
-		//this.render();
-	}
-	
-	
-};
-*/
 
 var date=new Date();
-var clock = new ClockClass(document.getElementById('canvas'),50,36,date);
+var clock = new ClockClass(document.getElementById('canvas'),36,50,date);
 clock.render();
 
 
