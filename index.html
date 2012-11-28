@@ -31,7 +31,54 @@
 </nav>
 
 <script type='text/javascript'>
+var x=document.getElementById('log');
+function getLocation()
+  {
+  if (navigator.geolocation)
+    {
+    navigator.geolocation.getCurrentPosition(showPosition,showError);
+    }
+  else{x.innerHTML="Geolocation is not supported by this browser.";}
+  }
+function showPosition(position)
+  {
+  console.log('geolocation position: %o'+position);
+  x.innerHTML="Latitude: " + position.coords.latitude + 
+  "<br>Longitude: " + position.coords.longitude;	
+  }
+function showError(error)
+  {
+  switch(error.code) 
+    {
+    case error.PERMISSION_DENIED:
+      x.innerHTML="User denied the request for Geolocation."
+      break;
+    case error.POSITION_UNAVAILABLE:
+      x.innerHTML="Location information is unavailable."
+      break;
+    case error.TIMEOUT:
+      x.innerHTML="The request to get user location timed out."
+      break;
+    case error.UNKNOWN_ERROR:
+      x.innerHTML="An unknown error occurred."
+      break;
+    }
+  }
+
+
 //SunriseSunsetTest();
+window.requestAnimFrame = function(){
+    return (
+        window.requestAnimationFrame       || 
+        window.webkitRequestAnimationFrame || 
+        window.mozRequestAnimationFrame    || 
+        window.oRequestAnimationFrame      || 
+        window.msRequestAnimationFrame     || 
+        function(/* function */ callback){
+            window.setTimeout(callback, 1000 / 60);
+        }
+    );
+}();
 
 var ClockClass = function(canvas, longitude, latitude, time) {
 	this.longitude=longitude;
@@ -46,6 +93,7 @@ var ClockClass = function(canvas, longitude, latitude, time) {
 	console.log('center point of clock: %o', this.centerPoint);
 
 	this.settings = {
+		debug: true,
 		clockRadius: 300,
 		tickRadius: 250,
 		tickLength: -10,
@@ -73,11 +121,36 @@ var ClockClass = function(canvas, longitude, latitude, time) {
 };
 
 ClockClass.prototype = {
+	//default settings for clock
+	settings : {
+		debug: false,
+		clockRadius: 300,
+		tickRadius: 250,
+		tickLength: -10,
+		hourLabelRadius: 275,
+		minuteLabelRadius: 200,
+		hourLabelFont: "bold 25px Arial",
+		minuteLabelFont: "normal 20px Arial",
+		hourPointerLength: 250,
+		hourPointerWidth: 8,
+		minutePointerLength: 175,
+		minutePointerWidth: 2,
+		displayNthHour: 1,
+		displayNthMinute: 10,
+		displayNthHourLabel: 1,
+		displayNthMinuteLabel: 20
+	},
 	render: function() {
 		console.log('Clock: render()');
 		this.canvas.clearRect(0,0, this.canvasElement.width, this.canvasElement.height);
 		this.renderBody();
-		this.renderPointers();	
+		this.renderPointers();
+		if (this.settings.debug) {
+			this.renderDebug();
+		}
+	},
+	renderDebug: function() {
+		console.log(this.time);	
 	},
 	renderPointers: function() {
 		var hourAngle=this.hourAngle(this.time);
@@ -85,7 +158,6 @@ ClockClass.prototype = {
 		point.x+=this.centerPoint.x;
 		point.y+=this.centerPoint.y;
 		console.log(point);
-		//var targetY=this.centerPoint[1]-this.pointerLength.hour*Math.cos(hourAngle);
 		
 		this.canvas.beginPath();
 		this.canvas.lineWidth=this.settings.hourPointerWidth;
@@ -257,18 +329,21 @@ ClockClass.prototype = {
 var date=new Date();
 var clock = new ClockClass(document.getElementById('canvas'),36,50,date);
 clock.render();
-
-
-
-document.getElementById('update-clock').addEventListener('click',function() {
-	clock.render();
+//update clock every 2 seconds (30 times per minute)
+window.setInterval(function(){
+	window.requestAnimFrame(function(/* time */ time){
+		clock.time=new Date();
+		clock.render();
 	});
+}, 2e3);
 
+document.getElementById
 
 
 
 console.log(canvas);
 console.log(clock);
+getLocation();
 //console.log(clock.getSunrise());
 //console.log(clock.getSunset());
 
