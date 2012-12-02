@@ -115,34 +115,21 @@ var ClockClass = function(canvas, latitude, longitude, time) {
     var clockSize=canvas.width/2-10;
     console.log('Clock object: %o', this);
     console.log('this.settings: %o', this.settings);
+    
     this.settings.clockRadius=clockSize;
     this.settings.hourTickRadius = clockSize-50;
     this.settings.hourLabelRadius = clockSize-25;
     this.settings.minuteLabelRadius = clockSize-100;
     this.settings.hourPointerLength = clockSize-55;
+    this.settings.displayMinutePointer = false;
     this.settings.minutePointerLength = clockSize-125;
     this.settings.displayNthHourTickStrong = 3;
     this.settings.displayNthHourTickEmphasize = 0;
     this.settings.displayNthHourLabel = 3;
+    this.settings.displayNthMinuteLabel = 0;
     
-	// this.settings = {
-		// debug: true,
-		// clockRadius: clockSize,
-		// hourTickRadius: clockSize-50,
-		// hourLabelRadius: clockSize-25,
-		// minuteLabelRadius: clockSize-100,
-		// hourLabelFont: "bold 25px Arial",
-		// minuteLabelFont: "normal 20px Arial",
-		// hourPointerLength: clockSize-50,
-		// hourPointerWidth: 8,
-		// minutePointerLength: clockSize-125,
-		// minutePointerWidth: 2,
-        // displayNthHour: 1,
-        // displayNthMinute: 5,
-        // displayNthHourLabel: 1,
-        // displayNthMinuteLabel: 20,
-        // displayMinutePointer: false
-	// };
+    
+
 	console.log('init geolocation with longitude '+longitude+' and latitude '+latitude);
 	this.geolocation=new SunriseSunset(
 		time.getUTCFullYear(),
@@ -171,7 +158,7 @@ ClockClass.prototype = {
 		hourPointerWidth: 8,
 		minutePointerLength: 175,
 		minutePointerWidth: 2,
-		hourTickRadius: 220,
+		hourTickRadius: 250,
         hourTickLength: -20,
         hourTickLengthStrong: -30,
         hourTickLengthEmphasize: -40,
@@ -190,8 +177,12 @@ ClockClass.prototype = {
 		displayNthHourTickEmphasize: 2,
 		displayNthMinuteTick: 10,		
 		displayNthHourLabel: 1,
-		displayNthMinuteLabel: 20,
-		displayMinutePointer: true
+		displayNthMinuteLabel: 10,
+		displayMinutePointer: true,
+		pointerCapSize: 10
+	},
+	cache: {
+	    isEnabled: true
 	},
 	render: function() {
 		console.log('Clock: render()');
@@ -217,30 +208,36 @@ ClockClass.prototype = {
 		console.log(this.time);	
 	},
 	renderPointers: function() {
+	    //draw hour pointer
 		var hourAngle=this.hourAngle(this.time);
 		var point=this.toDecart(this.settings.hourPointerLength, hourAngle);
 		point.x+=this.centerPoint.x;
 		point.y+=this.centerPoint.y;
-		console.log(point);
 		
+		//draw hour pointer
+		//FIXME: make hour pointer looks better than just bold line :)
 		this.canvas.beginPath();
 		this.canvas.lineWidth=this.settings.hourPointerWidth;
 		this.canvas.moveTo(this.centerPoint.x, this.centerPoint.y);
 		this.canvas.lineTo(point.x, point.y);
 		this.canvas.stroke();
 		
-		this.canvas.beginPath();
-		this.canvas.lineWidth=this.settings.minutePointerWidth;
+		//draw minute pointer
+		if (this.settings.displayMinutePointer) {
 		var minuteAngle=this.minuteAngle(this.time);
-		point=this.toDecart(this.settings.minutePointerLength, minuteAngle);
-		point.x+=this.centerPoint.x;
-		point.y+=this.centerPoint.y;
-		this.canvas.moveTo(this.centerPoint.x,this.centerPoint.y);
-		this.canvas.lineTo(point.x, point.y);
+            this.canvas.beginPath();
+            this.canvas.lineWidth=this.settings.minutePointerWidth;
+            point=this.toDecart(this.settings.minutePointerLength, minuteAngle);
+            point.x+=this.centerPoint.x;
+            point.y+=this.centerPoint.y;
+            this.canvas.moveTo(this.centerPoint.x,this.centerPoint.y);
+            this.canvas.lineTo(point.x, point.y);
+            this.canvas.stroke();
+		}
 		
-		this.canvas.stroke();
+		//draw a cap in the middle of the clock
 		this.canvas.beginPath();
-		this.canvas.arc(this.centerPoint.x, this.centerPoint.y, 10, 0, 2*Math.PI);
+		this.canvas.arc(this.centerPoint.x, this.centerPoint.y, this.settings.pointerCapSize, 0, 2*Math.PI);
 		this.canvas.fill();
 	},
 	
@@ -307,6 +304,13 @@ ClockClass.prototype = {
 	
 	renderBody: function() {
 		var canvas=this.canvas;
+		if (typeof this.cache.body != 'undefined' && this.cache.isEnabled) {
+		    console.log('Using cached clock body');
+		    canvas.putImageData(this.cache.body, 0, 0);
+		    return;
+		}
+		this.cache.body=null;
+		console.log('Rendering body');
 		//render night and rise/set sectors of the clock
 		this.renderBodyNight(canvas);
 			
@@ -324,16 +328,15 @@ ClockClass.prototype = {
 		canvas.textAlign='center';
 		for (var i=0; i<24; ++i) {
 		    
-			this.canvas.beginPath();
+			canvas.beginPath();
 			var angle=360/24*i/180*Math.PI;
 			
 			//display Nth hour label
 			if (i%this.settings.displayNthHourLabel===0) {
                 var hourLabelPoint=this.toDecart(this.settings.hourLabelRadius, angle);
-                this.canvas.fillText(i, hourLabelPoint.x, hourLabelPoint.y);                    
+                canvas.fillText(i, hourLabelPoint.x, hourLabelPoint.y);                    
             }
             
-            console.log(this.settings);
             //display Nth hour tick
             if (i%this.settings.displayNthHourTick===0) {
                 var tickLength, tickWidth;
@@ -350,30 +353,32 @@ ClockClass.prototype = {
                 }
             } 
 			
-			this.canvas.lineWidth=tickWidth;
+			canvas.lineWidth=tickWidth;
 			
 			var startPoint=this.toDecart(this.settings.hourTickRadius, angle);
 			var endPoint=this.toDecart(tickLength, angle);
 			
 			//draw hour tick
-			this.canvas.moveTo(startPoint.x, startPoint.y);
-			this.canvas.lineTo(endPoint.x+startPoint.x, endPoint.y+startPoint.y);
-			this.canvas.stroke();
+			canvas.moveTo(startPoint.x, startPoint.y);
+			canvas.lineTo(endPoint.x+startPoint.x, endPoint.y+startPoint.y);
+			canvas.stroke();
 		}
 		//draw minutes on clock
 		if (this.settings.displayNthMinuteLabel>0) {
             canvas.font = this.settings.minuteLabelFont;
             for (var i=0; i<60; ++i) {
-                if (i%this.settings.displayNthMinute===0) {
-                    this.canvas.beginPath();
+                if (i%this.settings.displayNthMinuteLabel===0) {
+                    canvas.beginPath();
                     var angle=360/60*i/180*Math.PI;
                     var minuteLabelPoint=this.toDecart(this.settings.minuteLabelRadius, angle);
-                    this.canvas.fillText(i, minuteLabelPoint.x, minuteLabelPoint.y);    
+                    canvas.fillText(i, minuteLabelPoint.x, minuteLabelPoint.y);    
                 }
             }
 		}		
 		//restore center of canvas to be at original position.
-		this.canvas.restore();
+		canvas.restore();
+		
+		this.cache.body=canvas.getImageData(0, 0, canvas.canvas.width, canvas.canvas.height);
 	},
 	//helper function section
 	toDecart: function (radius, angle) {
