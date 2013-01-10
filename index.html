@@ -3,7 +3,11 @@
 <head>
 <title>24 hours clock (dev)</title>
 <script type='text/javascript' src='sunrise-sunset.js'></script>
+<script type='text/javascript' src='daynight-clock.js'></script>
 <script type='text/javascript' src='jquery-1.8.3.min.js'></script>
+<script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAgrj58PbXr2YriiRDqbnL1RSqrCjdkglBijPNIIYrqkVvD1R4QxRl47Yh2D_0C1l5KXQJGrbkSDvXFA"
+      type="text/javascript"></script>
+
 <style type='text/css'>
 #daynight-clock {
     /*border: 1px solid red;*/
@@ -14,6 +18,8 @@
     text-align: center;
     /*border: 1px solid blue;*/
 }
+
+.hide {display: none;}
 /*
  * canvas {width: 800px; height: 800px; border: 1px solid red;}
  */
@@ -23,38 +29,28 @@
 
 <body>
 
+<div id='message'></div>
 <div id='daynight-clock-container'>
     <div id='daynight-clock'>
         <canvas id='canvas' width='32' height='32'>Canvas</canvas>
     </div>
 </div>
 
-<div>
-	<input size='8' id='latitude' name='latitude' value='50.0000' /> <select name='latitude-hemisphere'>
-		<option value='N' selected='selected'>N</option>
-		<option value='S'>S</option>
-	</select><br />
-	<input size='8' id='longitude' name='longitude' value='36.0000' /> <select name='longitude-hemisphere'>
-		<option selected='selected' value='E'>E</option>
-		<option value='W'>W</option>
-	</select><br />
-	
+<div id='map-container' class='hide'>
+<div align="center" id="map" style="width: 600px; height: 400px;"><br/></div>
+<div>Lat: <span id='lat'></span> Lon: <span id='lng'></span></div>
+<button id='map-done'>done</button>
 </div>
 
 
-<div id='log'></div>
-<nav id='controls'>
-	<button id='update-clock'>Update</button>
-</nav>
 
 <script type='text/javascript'>
-    var x = document.getElementById('log');
     function getLocation() {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(usePosition, showError);
             return true;
         } else {
-            x.innerHTML = "Geolocation is not supported by this browser.";
+            //Geolocation is not supported by this browser.
         }
         return false;
     }
@@ -66,371 +62,170 @@
 
     function usePosition(position) {
         console.log('geolocation from user agent is %o', position);
-        window.geolocation = position;
+        createClock(position.coords);
     }
 
     function showError(error) {
         switch(error.code) {
             case error.PERMISSION_DENIED:
+                console.log('User denied the request for Geolocation.');
+                x=document.getElementById('message');
                 x.innerHTML = "User denied the request for Geolocation."
+                getCoordsFromMap();
                 break;
             case error.POSITION_UNAVAILABLE:
+                console.log("Location information is unavailable.");
+                x=document.getElementById('message');
                 x.innerHTML = "Location information is unavailable."
+                getCoordsFromMap();
                 break;
             case error.TIMEOUT:
-                x.innerHTML = "The request to get user location timed out."
+                //x.innerHTML = "The request to get user location timed out."
+                getCoordsFromMap();
                 break;
             case error.UNKNOWN_ERROR:
-                x.innerHTML = "An unknown error occurred."
+                //x.innerHTML = "An unknown error occurred."
+                getCoordsFromMap();
                 break;
         }
     }
-
-//SunriseSunsetTest();
-window.requestAnimFrame = function(){
-    return (
-        window.requestAnimationFrame       || 
-        window.webkitRequestAnimationFrame || 
-        window.mozRequestAnimationFrame    || 
-        window.oRequestAnimationFrame      || 
-        window.msRequestAnimationFrame     || 
-        function(/* function */ callback){
-            window.setTimeout(callback, 1000 / 1);
-        }
-    );
-}();
-
-var ClockClass = function(canvas, latitude, longitude, time) {
-	this.longitude=longitude;
-	this.latitude=latitude;
-	this.time=time;
-	this.canvasElement=canvas;
-	this.canvas=canvas.getContext('2d');
-	this.centerPoint= {
-		x: canvas.width/2,
-		y: canvas.height/2
-	};
-	console.log('center point of clock: %o', this.centerPoint);
-
-    var clockSize=canvas.width/2-10;
-    console.log('Clock object: %o', this);
-    console.log('this.settings: %o', this.settings);
     
-    this.settings.clockRadius=clockSize;
-    this.settings.hourTickRadius = clockSize-50;
-    this.settings.hourLabelRadius = clockSize-25;
-    this.settings.minuteLabelRadius = clockSize-100;
-    this.settings.hourPointerLength = clockSize-55;
-    this.settings.displayMinutePointer = false;
-    this.settings.minutePointerLength = clockSize-125;
-    this.settings.displayNthHourTickStrong = 3;
-    this.settings.displayNthHourTickEmphasize = 0;
-    this.settings.displayNthHourLabel = 3;
-    this.settings.displayNthMinuteLabel = 0;
+    function createClock(geolocation) {
+        var canvasElement=document.getElementById('canvas');
+        var clockSize=Math.min(window.innerWidth, window.innerHeight);
+        clockSize*=0.95; // -5% to look ok
+        canvasElement.width=clockSize;
+        canvasElement.height=clockSize;
+        //if user agent can not provide coordinates 
+        
+        var clock = new ClockClass(canvas, geolocation.latitude, geolocation.longitude, new Date());
+        clock.settings.displayMinutePointer = false;
+        clock.settings.displayNthHourTickStrong = 3;
+        clock.settings.displayNthHourTickEmphasize = 0;
+        clock.settings.displayNthHourLabel = 3;
+        clock.settings.displayNthMinuteLabel = 0;
     
+        clock.render();
+        //update clock every 2 seconds (30 times per minute)
+        window.setInterval(function(){
+            window.requestAnimFrame(function(/* time */ time){
+                clock.time=new Date();
+                clock.render();
+            });
+        }, 2e3);
+    }
     
+    function getCoordsFromMap() {
+        $('#map-container').show();
+        $('#map-done').click(function() {
+            console.log('get coordinates and render clock!');
+            $('#map-container').hide();
+            var coords={};
+            coords.latitude=$('#lat').text();
+            coords.longitude=$('#lng').text();
+            createClock(coords);
+        });
+        if (GBrowserIsCompatible()) {
 
-	console.log('init geolocation with longitude '+longitude+' and latitude '+latitude);
-	this.geolocation=new SunriseSunset(
-		time.getUTCFullYear(),
-		time.getUTCMonth()+1, //+1 required for month to be in range 1..12 insted of 0..11
-		time.getUTCDate(),
-		latitude,
-		longitude		
-		);
-		
-	this.gmtOffset=time.getTimezoneOffset()/(-60);
-	console.log('gmt offset: '+this.gmtOffset);
-	
-};
+            var map = new GMap2(document.getElementById("map"));
+        
+        map.addControl(new GSmallMapControl());
+        map.addControl(new GMapTypeControl());
+        var center = new GLatLng(48.89364,      2.33739);
+        map.setCenter(center, 15);
+        geocoder = new GClientGeocoder();
+        var marker = new GMarker(center, {draggable: true});  
+        map.addOverlay(marker);
+        document.getElementById("lat").innerHTML = center.lat().toFixed(5);
+        document.getElementById("lng").innerHTML = center.lng().toFixed(5);
 
-ClockClass.prototype = {
-	//default settings for clock
-	settings : {
-		debug: false,
-		clockRadius: 300,
-		clockBodyWidth: 3,
-		hourLabelRadius: 275,
-		minuteLabelRadius: 200,
-		hourLabelFont: "bold 25px Arial",
-		minuteLabelFont: "normal 20px Arial",
-		hourPointerLength: 250,
-		hourPointerWidth: 8,
-		minutePointerLength: 175,
-		minutePointerWidth: 2,
-		hourTickRadius: 250,
-        hourTickLength: -20,
-        hourTickLengthStrong: -30,
-        hourTickLengthEmphasize: -40,
-		hourTickWidth: 1,
-		hourTickWidthEmphasize: 1,
-		hourTickWidthStrong: 3,
-		minuteTickRadius: 220,
-		minuteTickLength: -10,
-        minuteTickLengthStrong: -15,
-        minuteTickLengthEmphasize: -20,
-        minuteTickWidth: 1,
-        minuteTickWidthEmphasize: 1,
-        minuteTickWidthStrong: 3,
-		displayNthHourTick: 1,
-		displayNthHourTickStrong: 4,
-		displayNthHourTickEmphasize: 2,
-		displayNthMinuteTick: 10,		
-		displayNthHourLabel: 1,
-		displayNthMinuteLabel: 10,
-		displayMinutePointer: true,
-		pointerCapSize: 10
-	},
-	cache: {
-	    isEnabled: true
-	},
-	render: function() {
-		console.log('Clock: render()');
-		this.canvas.clearRect(0,0, this.canvasElement.width, this.canvasElement.height);
-		//this.renderNoCoordsAvailable();
-		this.renderBody();
-		this.renderPointers();
-		if (this.settings.debug) {
-			this.renderDebug();
-		}
-	},
-	renderNoCoordsAvailable: function() {
-	    var canvas=this.canvas;
-	    var img=new Image();
-	    img.src='no-coords.png';
-	    img.onload=function() {
-	        console.log('Image obj: %o', img);
-	        canvas.drawImage(img,0,0);
-	    }
-	    
-	},
-	renderDebug: function() {
-		console.log(this.time);	
-	},
-	renderPointers: function() {
-	    //draw hour pointer
-		var hourAngle=this.hourAngle(this.time);
-		var point=this.toDecart(this.settings.hourPointerLength, hourAngle);
-		point.x+=this.centerPoint.x;
-		point.y+=this.centerPoint.y;
-		
-		//draw hour pointer
-		//FIXME: make hour pointer looks better than just bold line :)
-		this.canvas.beginPath();
-		this.canvas.lineWidth=this.settings.hourPointerWidth;
-		this.canvas.moveTo(this.centerPoint.x, this.centerPoint.y);
-		this.canvas.lineTo(point.x, point.y);
-		this.canvas.stroke();
-		
-		//draw minute pointer
-		if (this.settings.displayMinutePointer) {
-		var minuteAngle=this.minuteAngle(this.time);
-            this.canvas.beginPath();
-            this.canvas.lineWidth=this.settings.minutePointerWidth;
-            point=this.toDecart(this.settings.minutePointerLength, minuteAngle);
-            point.x+=this.centerPoint.x;
-            point.y+=this.centerPoint.y;
-            this.canvas.moveTo(this.centerPoint.x,this.centerPoint.y);
-            this.canvas.lineTo(point.x, point.y);
-            this.canvas.stroke();
-		}
-		
-		//draw a cap in the middle of the clock
-		this.canvas.beginPath();
-		this.canvas.arc(this.centerPoint.x, this.centerPoint.y, this.settings.pointerCapSize, 0, 2*Math.PI);
-		this.canvas.fill();
-	},
-	
-	renderBodyNight: function(canvas) {
-	    canvas.save();
-        //translate center of canvas to center of the clock
-        canvas.translate(this.centerPoint.x, this.centerPoint.y);
-        
-        //draw night sector:
-        this.geolocation.mode='official'; //get sunrinse and sunset as we see it
-        var sunriseHour=this.geolocation.sunriseLocalHours(this.gmtOffset);
-        var sunsetHour=this.geolocation.sunsetLocalHours(this.gmtOffset);
-        this.geolocation.mode='civil'; //get time when it becames dark enough
-        var sunriseHour2=this.geolocation.sunriseLocalHours(this.gmtOffset);
-        var sunsetHour2=this.geolocation.sunsetLocalHours(this.gmtOffset);
-        //Hour2 is always the lighter day time than cooresponding Hour
-        console.log('sunset, sunrise: '+sunsetHour+'..'+sunsetHour2+', '+sunriseHour+'..'+sunriseHour2);
-        
-        var sunsetAngle=sunsetHour/24*360/180*Math.PI;
-        var sunsetAngle2=sunsetHour2/24*360/180*Math.PI;
-        var sunriseAngle=sunriseHour/24*360/180*Math.PI;
-        var sunriseAngle2=sunriseHour2/24*360/180*Math.PI;
-        
-        var sunsetPoint=this.toDecart(this.settings.clockRadius,sunsetAngle);
-        var sunsetPoint2=this.toDecart(this.settings.clockRadius,sunsetAngle2);
-        var sunrisePoint=this.toDecart(this.settings.clockRadius,sunriseAngle);
-        var sunrisePoint2=this.toDecart(this.settings.clockRadius,sunriseAngle2);
-        
-        canvas.beginPath();
-        canvas.moveTo(0,0);
-        canvas.arc(0, 0, this.settings.clockRadius, sunsetAngle2-Math.PI/2, sunriseAngle2-Math.PI/2 );
-        canvas.fillStyle='#545465';
-        canvas.fill();
-        
-        canvas.save();
-        canvas.rotate(sunriseAngle2-0.01);
-        var sunriseLength=this.length(sunrisePoint, sunrisePoint2);
-        console.log('Sunrise gradient len: '+sunriseLength);
-        var sunriseGradient=canvas.createLinearGradient(0, 0, sunriseLength, 0);
-        sunriseGradient.addColorStop(0, '#545465');
-        sunriseGradient.addColorStop(1, '#ffffff');
-        canvas.beginPath();
-        canvas.moveTo(0,0);
-        canvas.arc(0,0, this.settings.clockRadius, -Math.PI/2, -Math.PI/2+sunriseAngle-sunriseAngle2);
-        canvas.fillStyle=sunriseGradient;
-        canvas.fill();
-        canvas.restore();
-        
-        canvas.save();
-        canvas.rotate(sunsetAngle2+0.01);
-        var sunsetLength=this.length(sunsetPoint, sunsetPoint2);
-        console.log('Sunset gradient len: '+sunsetLength);
-        var sunsetGradient=canvas.createLinearGradient(0, 0, -sunsetLength, 0);
-        sunsetGradient.addColorStop(0, '#545465');
-        sunsetGradient.addColorStop(1, '#ffffff');
-        canvas.beginPath();
-        canvas.moveTo(0,0);
-        canvas.arc(0,0, this.settings.clockRadius, -Math.PI/2-(sunsetAngle2-sunsetAngle), -Math.PI/2);
-        canvas.fillStyle=sunsetGradient;
-        canvas.fill();
-        
-        canvas.restore();
-	},
-	
-	renderBody: function() {
-		var canvas=this.canvas;
-		if (typeof this.cache.body != 'undefined' && this.cache.isEnabled) {
-		    console.log('Using cached clock body');
-		    canvas.putImageData(this.cache.body, 0, 0);
-		    return;
-		}
-		this.cache.body=null;
-		console.log('Rendering body');
-		//render night and rise/set sectors of the clock
-		this.renderBodyNight(canvas);
-			
-		
-		canvas.beginPath();
-		canvas.lineWidth=this.settings.clockBodyWidth;
-		canvas.arc(0,0,this.settings.clockRadius,0,2*Math.PI);
-		canvas.stroke();
-		
-		canvas.fillStyle='#000000';
-		//draw hours on clock
-		//prepare text positioning properties
-		canvas.font = this.settings.hourLabelFont;
-		canvas.textBaseline='middle';
-		canvas.textAlign='center';
-		for (var i=0; i<24; ++i) {
-		    
-			canvas.beginPath();
-			var angle=360/24*i/180*Math.PI;
-			
-			//display Nth hour label
-			if (i%this.settings.displayNthHourLabel===0) {
-                var hourLabelPoint=this.toDecart(this.settings.hourLabelRadius, angle);
-                canvas.fillText(i, hourLabelPoint.x, hourLabelPoint.y);                    
+      GEvent.addListener(marker, "dragend", function() {
+       var point = marker.getPoint();
+          map.panTo(point);
+       document.getElementById("lat").innerHTML = point.lat().toFixed(5);
+       document.getElementById("lng").innerHTML = point.lng().toFixed(5);
+
+        });
+
+
+     GEvent.addListener(map, "moveend", function() {
+          map.clearOverlays();
+    var center = map.getCenter();
+          var marker = new GMarker(center, {draggable: true});
+          map.addOverlay(marker);
+          document.getElementById("lat").innerHTML = center.lat().toFixed(5);
+       document.getElementById("lng").innerHTML = center.lng().toFixed(5);
+
+
+     GEvent.addListener(marker, "dragend", function() {
+      var point =marker.getPoint();
+         map.panTo(point);
+      document.getElementById("lat").innerHTML = point.lat().toFixed(5);
+         document.getElementById("lng").innerHTML = point.lng().toFixed(5);
+
+        });
+ 
+        });
+
+      }
+    }
+
+       function showAddress(address) {
+       var map = new GMap2(document.getElementById("map"));
+       map.addControl(new GSmallMapControl());
+       map.addControl(new GMapTypeControl());
+       if (geocoder) {
+        geocoder.getLatLng(
+          address,
+          function(point) {
+            if (!point) {
+              alert(address + " not found");
+            } else {
+          document.getElementById("lat").innerHTML = point.lat().toFixed(5);
+       document.getElementById("lng").innerHTML = point.lng().toFixed(5);
+         map.clearOverlays()
+            map.setCenter(point, 14);
+   var marker = new GMarker(point, {draggable: true});  
+         map.addOverlay(marker);
+
+        GEvent.addListener(marker, "dragend", function() {
+      var pt = marker.getPoint();
+         map.panTo(pt);
+      document.getElementById("lat").innerHTML = pt.lat().toFixed(5);
+         document.getElementById("lng").innerHTML = pt.lng().toFixed(5);
+        });
+
+
+     GEvent.addListener(map, "moveend", function() {
+          map.clearOverlays();
+    var center = map.getCenter();
+          var marker = new GMarker(center, {draggable: true});
+          map.addOverlay(marker);
+          document.getElementById("lat").innerHTML = center.lat().toFixed(5);
+       document.getElementById("lng").innerHTML = center.lng().toFixed(5);
+
+     GEvent.addListener(marker, "dragend", function() {
+     var pt = marker.getPoint();
+        map.panTo(pt);
+    document.getElementById("lat").innerHTML = pt.lat().toFixed(5);
+       document.getElementById("lng").innerHTML = pt.lng().toFixed(5);
+        });
+ 
+        });
+
             }
-            
-            //display Nth hour tick
-            if (i%this.settings.displayNthHourTick===0) {
-                var tickLength, tickWidth;
-                //try to draw strong styled tick
-                if (i%this.settings.displayNthHourTickStrong===0) {
-                    tickLength=this.settings.hourTickLengthStrong;
-                    tickWidth=this.settings.hourTickWidthStrong;
-                } else if (i%this.settings.displayNthHourTickEmphasize===0) { //try display emphasize styled tick
-                    tickLength=this.settings.hourTickLengthEmphasize;
-                    tickWidth=this.settings.hourTickWidthEmphasize;
-                } else { //fallback to standard tick style
-                    tickLength=this.settings.hourTickLength;
-                    tickWidth=this.settings.hourTickWidth;
-                }
-            } 
-			
-			canvas.lineWidth=tickWidth;
-			
-			var startPoint=this.toDecart(this.settings.hourTickRadius, angle);
-			var endPoint=this.toDecart(tickLength, angle);
-			
-			//draw hour tick
-			canvas.moveTo(startPoint.x, startPoint.y);
-			canvas.lineTo(endPoint.x+startPoint.x, endPoint.y+startPoint.y);
-			canvas.stroke();
-		}
-		//draw minutes on clock
-		if (this.settings.displayNthMinuteLabel>0) {
-            canvas.font = this.settings.minuteLabelFont;
-            for (var i=0; i<60; ++i) {
-                if (i%this.settings.displayNthMinuteLabel===0) {
-                    canvas.beginPath();
-                    var angle=360/60*i/180*Math.PI;
-                    var minuteLabelPoint=this.toDecart(this.settings.minuteLabelRadius, angle);
-                    canvas.fillText(i, minuteLabelPoint.x, minuteLabelPoint.y);    
-                }
-            }
-		}		
-		//restore center of canvas to be at original position.
-		canvas.restore();
-		
-		this.cache.body=canvas.getImageData(0, 0, canvas.canvas.width, canvas.canvas.height);
-	},
-	//helper function section
-	toDecart: function (radius, angle) {
-		var decart={
-			x: radius*Math.sin(angle),
-			y: -radius*Math.cos(angle),
-		};
-		return decart;
-	},
-	length: function(point1, point2) {
-		//console.log('calculating length between points %o and %o',point1, point2);
-		var squaredLength=Math.pow((point1.x-point2.x),2)+Math.pow((point1.y-point2.y),2);
-		//console.log('Squared length: '+squaredLength);
-		return Math.sqrt(squaredLength);	
-	},
-	hourAngle: function(time) {
-		//alert ('type of time is '+typeof (time));
-		//if (typeof (time) != )
-		var minutes=time.getHours()*60+time.getMinutes();
-		//degree = minutes / (24*60) / 360 / 180 * PI
-		var angle=minutes/4/180*Math.PI;
-		return angle;		
-	},
-	
-	minuteAngle: function(time) {
-		var seconds=time.getMinutes()*60+time.getSeconds();
-		var angle=seconds/10/180*Math.PI;
-		return angle;
-	},
-};
+          }
+        );
+      }
+    }
+
 
 
 window.onload = function() {
-    var date=new Date();
-    var canvasElement=document.getElementById('canvas');
-    var width=800, height=800;
-    canvasElement.width=width;
-    canvasElement.height=height;
-    //if user agent can provide coordinates 
-    if (getLocation()===true) {
-        
+    if (getLocation() === false) {
+        console.log('browser can not provide coordinates');
+        //provide map to get coordinates from
     }
-    var clock = new ClockClass(canvas, 50, 36, date);
-    clock.render();
-    //update clock every 2 seconds (30 times per minute)
-    window.setInterval(function(){
-        window.requestAnimFrame(function(/* time */ time){
-            clock.time=new Date();
-            clock.render();
-        });
-    }, 2e3);
-    
 }
 
 
