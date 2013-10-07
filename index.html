@@ -2,11 +2,11 @@
 <html>
 <head>
 <title>24 hours clock (dev)</title>
+<script type='text/javascript' src='jquery-1.8.3.min.js'></script>
+<script type='text/javascript' src="http://openlayers.org/api/OpenLayers.js"></script>
 <script type='text/javascript' src='sunrise-sunset.js'></script>
 <script type='text/javascript' src='daynight-clock.js'></script>
-<script type='text/javascript' src='jquery-1.8.3.min.js'></script>
-<script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAgrj58PbXr2YriiRDqbnL1RSqrCjdkglBijPNIIYrqkVvD1R4QxRl47Yh2D_0C1l5KXQJGrbkSDvXFA"
-      type="text/javascript"></script>
+
 
 <style type='text/css'>
 #daynight-clock {
@@ -116,108 +116,68 @@
     }
     
     function getCoordsFromMap() {
+         OpenLayers.Control.Click = OpenLayers.Class(OpenLayers.Control, {                
+                defaultHandlerOptions: {
+                    'single': true,
+                    'double': true,
+                    'pixelTolerance': 0,
+                    'stopSingle': false,
+                    'stopDouble': false
+                },
+
+                initialize: function(options) {
+                    this.handlerOptions = OpenLayers.Util.extend(
+                        {}, this.defaultHandlerOptions
+                    );
+                    OpenLayers.Control.prototype.initialize.apply(
+                        this, arguments
+                    ); 
+                    this.handler = new OpenLayers.Handler.Click(
+                        this, {
+                            'click': this.trigger
+                        }, this.handlerOptions
+                    );
+                }, 
+
+                trigger: function(e) {
+                    var lonlat = map.getLonLatFromPixel(e.xy);
+                    alert("You clicked near " + lonlat.lat + " N, " +
+                                              + lonlat.lon + " E");
+                }
+
+            });
+        
         $('#map-container').show();
         $('#map-done').click(function() {
-            console.log('get coordinates and render clock!');
-            $('#map-container').hide();
-            var coords={};
-            coords.latitude=$('#lat').text();
-            coords.longitude=$('#lng').text();
-            createClock(coords);
+        console.log('get coordinates and render clock!');
+        $('#map-container').hide();
+        var coords={};
+        coords.latitude=$('#lat').text();
+        coords.longitude=$('#lng').text();
+        createClock(coords);
         });
-        if (GBrowserIsCompatible()) {
+        var map = new OpenLayers.Map('map', { controls: [] });
+        map.addControl(new OpenLayers.Control.MousePosition());
+        map.addControl(new OpenLayers.Control.KeyboardDefaults());
+        map.addControl(new OpenLayers.Control.Navigation());
+        var wms = new OpenLayers.Layer.WMS( "OpenLayers WMS",
+        "http://vmap0.tiles.osgeo.org/wms/vmap0", {layers: 'basic'} );
+        map.addLayer(wms);
+        map.zoomToMaxExtent();
 
-            var map = new GMap2(document.getElementById("map"));
+        var vectorLayer = new OpenLayers.Layer.Vector("Overlay");
+        var feature = new OpenLayers.Feature.Vector(
+            new OpenLayers.Geometry.Point(0, 0));
         
-        map.addControl(new GSmallMapControl());
-        map.addControl(new GMapTypeControl());
-        var center = new GLatLng(48.89364,      2.33739);
-        map.setCenter(center, 15);
-        geocoder = new GClientGeocoder();
-        var marker = new GMarker(center, {draggable: true});  
-        map.addOverlay(marker);
-        document.getElementById("lat").innerHTML = center.lat().toFixed(5);
-        document.getElementById("lng").innerHTML = center.lng().toFixed(5);
+        var click = new OpenLayers.Control.Click();
+        map.addControl(click);
+        click.activate();
 
-      GEvent.addListener(marker, "dragend", function() {
-       var point = marker.getPoint();
-          map.panTo(point);
-       document.getElementById("lat").innerHTML = point.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = point.lng().toFixed(5);
+        vectorLayer.addFeatures(feature);
+        map.addLayer(vectorLayer);
 
-        });
+        }
 
-
-     GEvent.addListener(map, "moveend", function() {
-          map.clearOverlays();
-    var center = map.getCenter();
-          var marker = new GMarker(center, {draggable: true});
-          map.addOverlay(marker);
-          document.getElementById("lat").innerHTML = center.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = center.lng().toFixed(5);
-
-
-     GEvent.addListener(marker, "dragend", function() {
-      var point =marker.getPoint();
-         map.panTo(point);
-      document.getElementById("lat").innerHTML = point.lat().toFixed(5);
-         document.getElementById("lng").innerHTML = point.lng().toFixed(5);
-
-        });
- 
-        });
-
-      }
-    }
-
-       function showAddress(address) {
-       var map = new GMap2(document.getElementById("map"));
-       map.addControl(new GSmallMapControl());
-       map.addControl(new GMapTypeControl());
-       if (geocoder) {
-        geocoder.getLatLng(
-          address,
-          function(point) {
-            if (!point) {
-              alert(address + " not found");
-            } else {
-          document.getElementById("lat").innerHTML = point.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = point.lng().toFixed(5);
-         map.clearOverlays()
-            map.setCenter(point, 14);
-   var marker = new GMarker(point, {draggable: true});  
-         map.addOverlay(marker);
-
-        GEvent.addListener(marker, "dragend", function() {
-      var pt = marker.getPoint();
-         map.panTo(pt);
-      document.getElementById("lat").innerHTML = pt.lat().toFixed(5);
-         document.getElementById("lng").innerHTML = pt.lng().toFixed(5);
-        });
-
-
-     GEvent.addListener(map, "moveend", function() {
-          map.clearOverlays();
-    var center = map.getCenter();
-          var marker = new GMarker(center, {draggable: true});
-          map.addOverlay(marker);
-          document.getElementById("lat").innerHTML = center.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = center.lng().toFixed(5);
-
-     GEvent.addListener(marker, "dragend", function() {
-     var pt = marker.getPoint();
-        map.panTo(pt);
-    document.getElementById("lat").innerHTML = pt.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = pt.lng().toFixed(5);
-        });
- 
-        });
-
-            }
-          }
-        );
-      }
-    }
 
 
 
