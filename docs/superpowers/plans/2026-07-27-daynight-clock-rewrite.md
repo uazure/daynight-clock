@@ -762,11 +762,17 @@ git commit -m "Add sun altitude day sampling"
 
 GeoNames only publishes `cities15000` as a zip, and Node has no zip reader, so the download and extraction are manual and done once:
 
+**Already done by the controller.** The extracted file is at:
+
+`C:\Users\popov\AppData\Local\Temp\geonames\cities15000.txt` — 34,048 lines, 19 tab-separated columns.
+
+For reference, the commands were:
+
 ```bash
-mkdir -p /c/Users/popov/AppData/Local/Temp/geonames && cd /c/Users/popov/AppData/Local/Temp/geonames && curl -fSL -o cities15000.zip https://download.geonames.org/export/dump/cities15000.zip && tar -xf cities15000.zip && wc -l cities15000.txt
+curl -fSL -o cities15000.zip https://download.geonames.org/export/dump/cities15000.zip && /c/Windows/System32/tar.exe -xf cities15000.zip
 ```
 
-`tar -xf` reads zip archives via bsdtar, which ships with Windows 10+ and macOS. Expected: roughly 26,000–27,000 lines.
+Note the explicit path to Windows' bsdtar: Git Bash's bundled `tar` is GNU tar, which cannot read zip archives and fails with "This does not look like a tar archive".
 
 - [ ] **Step 2: Write the generator**
 
