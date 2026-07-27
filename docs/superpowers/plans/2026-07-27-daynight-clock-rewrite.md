@@ -600,9 +600,18 @@ describe('sampleDay', () => {
     }
   })
 
-  it('gives a polar-night dial no bright samples', () => {
-    const { lightness } = sampleDay(new Date('2026-12-21T00:00:00Z'), 78.22, 15.65)
-    expect(Math.max(...lightness)).toBeLessThan(0.35)
+  it('gives a polar-night dial no daylight samples', () => {
+    const { altitudes, lightness } = sampleDay(
+      new Date('2026-12-21T00:00:00Z'),
+      78.22,
+      15.65,
+    )
+    // The sun stays below the civil-twilight boundary all day, so no part of
+    // the dial reaches even the civil anchor's brightness. Expressed against
+    // the anchor rather than a magic tolerance: the real brightest sample sits
+    // at roughly 0.356, and a hand-picked bound near that is fragile.
+    expect(Math.max(...altitudes)).toBeLessThan(-6)
+    expect(Math.max(...lightness)).toBeLessThan(altitudeToLightness(-6))
   })
 })
 
@@ -635,7 +644,12 @@ describe('hoursSinceLocalMidnight', () => {
   it('converts local wall time to fractional hours', () => {
     expect(hoursSinceLocalMidnight(new Date(2026, 6, 27, 0, 0, 0))).toBeCloseTo(0, 9)
     expect(hoursSinceLocalMidnight(new Date(2026, 6, 27, 6, 30, 0))).toBeCloseTo(6.5, 9)
-    expect(hoursSinceLocalMidnight(new Date(2026, 6, 27, 23, 59, 60))).toBeCloseTo(24, 9)
+    // Just before midnight, not `23, 59, 60` — a 60-second argument normalises
+    // to the next day's midnight while the Date is being constructed, so the
+    // function would correctly see 0, and no implementation could return 24.
+    expect(
+      hoursSinceLocalMidnight(new Date(2026, 6, 27, 23, 59, 59, 999)),
+    ).toBeCloseTo(24, 4)
   })
 })
 ```
