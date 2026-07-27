@@ -11,7 +11,7 @@ export const DIAL = {
   hourLabel: 68,
   hourHand: 58,
   minuteHand: 74,
-  hub: 4.5,
+  hub: 6,
 } as const
 
 /** Which day-profile sample covers a given hour of the local day. */
