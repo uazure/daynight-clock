@@ -530,8 +530,8 @@ git commit -m "Add sun-altitude to dial-lightness ramp"
   - `MINUTES_PER_SAMPLE: 6`
   - `interface DayProfile { altitudes: Float64Array; lightness: Float64Array }`
   - `sampleDay(dayStart: Date, lat: number, lon: number): DayProfile`
-  - `startOfLocalDay(now: Date): Date`
   - `localDateKey(now: Date): string` — `YYYY-MM-DD`
+  - `startOfLocalDay(dateKey: string): Date` — takes the key, not a `Date`, so that `useDayProfile` can memoize on the key alone with honest dependencies
   - `hoursSinceLocalMidnight(now: Date): number` — fractional hours, 0…24
 
   `sampleDay` takes an absolute instant so it is timezone-independent and testable; `startOfLocalDay` is the only function that consults the device timezone. `useDayProfile` (Task 7) memoizes on `localDateKey`.
@@ -607,9 +607,8 @@ describe('sampleDay', () => {
 })
 
 describe('startOfLocalDay', () => {
-  it('rewinds to local midnight on the same local date', () => {
-    const now = new Date(2026, 6, 27, 14, 33, 12, 500)
-    const start = startOfLocalDay(now)
+  it('turns a date key into local midnight', () => {
+    const start = startOfLocalDay('2026-07-27')
     expect(start.getFullYear()).toBe(2026)
     expect(start.getMonth()).toBe(6)
     expect(start.getDate()).toBe(27)
@@ -617,6 +616,11 @@ describe('startOfLocalDay', () => {
     expect(start.getMinutes()).toBe(0)
     expect(start.getSeconds()).toBe(0)
     expect(start.getMilliseconds()).toBe(0)
+  })
+
+  it('round-trips with localDateKey', () => {
+    const key = localDateKey(new Date(2026, 6, 27, 14, 33, 12, 500))
+    expect(localDateKey(startOfLocalDay(key))).toBe(key)
   })
 })
 
@@ -682,16 +686,20 @@ export function sampleDay(dayStart: Date, lat: number, lon: number): DayProfile 
   return { altitudes, lightness }
 }
 
-/** Local midnight of the day containing `now`. The only timezone-aware helper. */
-export function startOfLocalDay(now: Date): Date {
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
-}
-
 /** `YYYY-MM-DD` in local time — the memo key for a day's profile. */
 export function localDateKey(now: Date): string {
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return `${now.getFullYear()}-${month}-${day}`
+}
+
+/**
+ * Local midnight for a `YYYY-MM-DD` key. Keyed by the string rather than by a
+ * `Date` so that a memo over the day's profile can depend on the key alone.
+ */
+export function startOfLocalDay(dateKey: string): Date {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  return new Date(year, month - 1, day)
 }
 
 /** Fractional hours since local midnight, for placing the hands. */
@@ -708,7 +716,7 @@ export function hoursSinceLocalMidnight(now: Date): number {
 - [ ] **Step 4: Run the tests and confirm they pass**
 
 Run: `npx vitest run src/lib/sun.test.ts && npm run typecheck`
-Expected: 9 passing tests, clean typecheck.
+Expected: 10 passing tests, clean typecheck.
 
 - [ ] **Step 5: Commit**
 
@@ -1631,13 +1639,9 @@ import {
  */
 export function useDayProfile(now: Date, lat: number, lon: number): DayProfile {
   const dateKey = localDateKey(now)
-  const dayStart = startOfLocalDay(now)
 
   return useMemo(
-    () => sampleDay(dayStart, lat, lon),
-    // `dayStart` is a pure function of `dateKey`, so keying on the date string
-    // is what makes this recompute once a day instead of once a tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => sampleDay(startOfLocalDay(dateKey), lat, lon),
     [dateKey, lat, lon],
   )
 }
