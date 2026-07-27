@@ -1298,18 +1298,19 @@ const PROMPT_KEY = 'daynight.geoPromptDismissed'
 const ZONES = timezoneCoords as Record<string, [number, number]>
 
 /**
- * Zones renamed since the GeoNames dump was cut. The table is keyed by the
- * older name, so modern ICU output needs redirecting.
+ * Renamed zones, keyed by the retired name. The dataset uses current IANA
+ * names throughout, so a device whose tzdata predates a rename reports a name
+ * the table does not carry; these redirect it to the current spelling.
  */
 const ZONE_ALIASES: Record<string, string> = {
-  'Europe/Kyiv': 'Europe/Kiev',
-  'Asia/Kolkata': 'Asia/Calcutta',
-  'Asia/Ho_Chi_Minh': 'Asia/Saigon',
-  'Asia/Yangon': 'Asia/Rangoon',
-  'Asia/Kathmandu': 'Asia/Katmandu',
-  'America/Argentina/Buenos_Aires': 'America/Buenos_Aires',
-  'Europe/Istanbul': 'Asia/Istanbul',
-  'Pacific/Honolulu': 'US/Hawaii',
+  'Europe/Kiev': 'Europe/Kyiv',
+  'Asia/Calcutta': 'Asia/Kolkata',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Katmandu': 'Asia/Kathmandu',
+  'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+  'Asia/Istanbul': 'Europe/Istanbul',
+  'US/Hawaii': 'Pacific/Honolulu',
 }
 
 /** ~1 km. The dial cannot resolve finer, so nothing finer is kept. */
@@ -1480,9 +1481,7 @@ export function requestCoarsePosition(): Promise<Place> {
 Run: `npx vitest run src/lib/location.test.ts && npm run typecheck`
 Expected: 27 passing tests, clean typecheck.
 
-Two assertions are worth reading the failure of carefully rather than adjusting:
-- If the `Europe/Kiev` alias test fails, `timezone-coords.json` uses `Europe/Kyiv` — invert that entry in `ZONE_ALIASES` instead of deleting the test.
-- If `utcOffsetLabel('UTC', …)` fails, check what `timeZoneName: 'longOffset'` produced; some ICU builds emit `GMT` and others `GMT+0`. Both must map to `'UTC'`.
+One assertion is worth reading the failure of carefully rather than adjusting: if `utcOffsetLabel('UTC', …)` fails, check what `timeZoneName: 'longOffset'` produced. On this machine Node emits `GMT` for UTC and `GMT+09:00` for Tokyo, but some ICU builds emit `GMT+0`. Every one of those must map to `'UTC'` or `'UTC+9'` respectively.
 
 - [ ] **Step 5: Commit**
 
