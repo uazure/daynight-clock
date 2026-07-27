@@ -52,9 +52,19 @@ describe('altitudeToLightness', () => {
 })
 
 describe('lightnessToFill', () => {
-  it('produces a darker hsl string for a darker input', () => {
-    expect(lightnessToFill(0)).toMatch(/^hsl\(/)
-    expect(lightnessToFill(0)).not.toBe(lightnessToFill(1))
+  it('produces exact hsl strings with correct hue, saturation, and band', () => {
+    // 5%..96% band at hue 220, saturation 12%
+    expect(lightnessToFill(0)).toBe('hsl(220 12% 5.0%)')
+    expect(lightnessToFill(1)).toBe('hsl(220 12% 96.0%)')
+  })
+
+  it('fills darker for lower lightness (catches inverted band)', () => {
+    const darkFill = lightnessToFill(0.2)
+    const brightFill = lightnessToFill(0.8)
+    // Extract the percentage from hsl() and compare numerically
+    const darkPercent = parseFloat(darkFill.match(/\d+\.\d%/)![0])
+    const brightPercent = parseFloat(brightFill.match(/\d+\.\d%/)![0])
+    expect(darkPercent).toBeLessThan(brightPercent)
   })
 })
 
@@ -63,5 +73,11 @@ describe('contrastInk', () => {
     expect(contrastInk(0.95)).toBe(contrastInk(0.8))
     expect(contrastInk(0.1)).toBe(contrastInk(0.2))
     expect(contrastInk(0.95)).not.toBe(contrastInk(0.1))
+  })
+
+  it('uses exact hsl strings pinned to the threshold logic', () => {
+    // lightness > 0.5 → dark ink (12%), else light ink (92%)
+    expect(contrastInk(0.7)).toBe('hsl(220 12% 12%)')
+    expect(contrastInk(0.3)).toBe('hsl(220 12% 92%)')
   })
 })
