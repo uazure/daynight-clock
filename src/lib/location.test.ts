@@ -30,6 +30,26 @@ function fakeStorage(): Storage {
   } as Storage
 }
 
+/**
+ * A localStorage stand-in whose read/write methods throw, mimicking Safari
+ * private browsing or a storage quota failure.
+ */
+function throwingStorage(): Storage {
+  const boom = () => {
+    throw new Error('storage unavailable')
+  }
+  return {
+    get length() {
+      return 0
+    },
+    clear: boom,
+    getItem: boom,
+    key: () => null,
+    removeItem: boom,
+    setItem: boom,
+  } as Storage
+}
+
 beforeEach(() => {
   vi.stubGlobal('localStorage', fakeStorage())
   vi.stubGlobal('navigator', {})
@@ -93,6 +113,29 @@ describe('the dismissed-prompt flag', () => {
     expect(isPromptDismissed()).toBe(false)
     dismissPrompt()
     expect(isPromptDismissed()).toBe(true)
+  })
+})
+
+describe('storage failures (Safari private browsing, full quota)', () => {
+  it('saveOverride does not throw when localStorage.setItem throws', () => {
+    vi.stubGlobal('localStorage', throwingStorage())
+    const place: Place = { lat: 10, lon: 20, label: 'Somewhere', source: 'manual' }
+    expect(() => saveOverride(place)).not.toThrow()
+  })
+
+  it('dismissPrompt does not throw when localStorage.setItem throws', () => {
+    vi.stubGlobal('localStorage', throwingStorage())
+    expect(() => dismissPrompt()).not.toThrow()
+  })
+
+  it('clearOverride does not throw when localStorage.removeItem throws', () => {
+    vi.stubGlobal('localStorage', throwingStorage())
+    expect(() => clearOverride()).not.toThrow()
+  })
+
+  it('isPromptDismissed returns false rather than throwing when getItem throws', () => {
+    vi.stubGlobal('localStorage', throwingStorage())
+    expect(isPromptDismissed()).toBe(false)
   })
 })
 

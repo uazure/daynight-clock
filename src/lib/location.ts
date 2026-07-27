@@ -133,19 +133,39 @@ export function saveOverride(place: Place): void {
     label: place.label,
     source: 'manual',
   }
-  localStorage.setItem(PLACE_KEY, JSON.stringify(stored))
+  try {
+    // Safari private browsing (and a full storage quota) makes setItem throw
+    // synchronously. This is called directly from UI handlers (Task 8), so a
+    // storage failure must degrade to an in-memory-only session, not crash it.
+    localStorage.setItem(PLACE_KEY, JSON.stringify(stored))
+  } catch {
+    // ignored: the chosen place still lives in memory for this session
+  }
 }
 
 export function clearOverride(): void {
-  localStorage.removeItem(PLACE_KEY)
+  try {
+    localStorage.removeItem(PLACE_KEY)
+  } catch {
+    // ignored: same storage-unavailable case as saveOverride
+  }
 }
 
 export function isPromptDismissed(): boolean {
-  return localStorage.getItem(PROMPT_KEY) === '1'
+  try {
+    return localStorage.getItem(PROMPT_KEY) === '1'
+  } catch {
+    // Storage unreadable: behave as if the prompt was never dismissed.
+    return false
+  }
 }
 
 export function dismissPrompt(): void {
-  localStorage.setItem(PROMPT_KEY, '1')
+  try {
+    localStorage.setItem(PROMPT_KEY, '1')
+  } catch {
+    // ignored: same storage-unavailable case as saveOverride
+  }
 }
 
 /**
