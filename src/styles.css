@@ -1,0 +1,21 @@
+:root {
+  --ink: hsl(220 14% 10%);
+  --paper: hsl(220 12% 96%);
+  color-scheme: light dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: hsl(220 10% 8%);
+  color: var(--paper);
+  font: 16px/1.4 system-ui, sans-serif;
+}
+
+.app {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
