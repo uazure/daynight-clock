@@ -48,10 +48,10 @@ describe('sectorPath', () => {
     expect(d.endsWith('Z')).toBe(true)
   })
 
-  it('mentions both radii in an annular wedge', () => {
+  it('sets correct sweep flags for both arcs in an annular wedge', () => {
     const d = sectorPath(50, 100, 0, 30)
-    expect(d).toContain('A 100 100')
-    expect(d).toContain('A 50 50')
+    expect(d).toContain('A 100 100 0 0 1')
+    expect(d).toContain('A 50 50 0 0 0')
   })
 
   it('emits a pie slice through the origin when the inner radius is zero', () => {
