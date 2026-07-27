@@ -160,10 +160,12 @@ stored. At this scale that moves sunrise by a few seconds.
 `scripts/build-cities.mjs` reads GeoNames `cities15000` (CC BY 4.0, attributed in the
 README), filters to population ≥ 200,000, and emits both data files:
 
-- `cities.json` — ~1,500 entries of `[name, country, lat, lon, tz]`, ~60 KB raw and
-  ~15 KB gzipped, loaded by dynamic `import()` only when the location panel opens
-- `timezone-coords.json` — the largest city per IANA zone, ~400 entries, bundled
-  because the resolver needs it on the first frame
+- `cities.json` — 3,058 entries of `[name, country, lat, lon, tz]`, 153 KB raw and
+  57 KB gzipped, loaded by dynamic `import()` only when the location panel opens.
+  It stays out of the initial bundle, so its size costs nothing until the user
+  actually opens the panel to search.
+- `timezone-coords.json` — the largest city per IANA zone, 356 entries, 13 KB,
+  bundled because the resolver needs it on the first frame
 
 Both outputs are committed, so builds are offline and reproducible. The script exists
 for regeneration, not as a build step.
