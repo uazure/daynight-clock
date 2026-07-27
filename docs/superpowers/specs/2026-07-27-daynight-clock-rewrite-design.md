@@ -16,8 +16,9 @@ rendering, the sun math, and the location handling are rewritten.
 
 ## Stack
 
-- Vite 7, React 19, TypeScript in `strict` mode
-- `suncalc` for solar position
+- Vite, React 19, TypeScript in `strict` mode
+- `suncalc` 2.x for solar position — ships its own types (no `@types/suncalc`), ESM
+  named exports, and reports angles in **degrees**
 - Vitest for unit tests, logic only
 - `vite-plugin-pwa` for offline capability
 - `base: './'` so `dist/` runs from any subpath or from `file://`
@@ -70,13 +71,14 @@ sampleDay(dateKey, lat, lon): Float64Array
 
 ```ts
 // lib/lightness.ts — the only place brightness is decided
-altitudeToLightness(altitudeRadians): number  // 0..1
-//   ≥ -0.833°   → 1.00   day (sun above horizon, refraction-corrected)
-//     -6°       → 0.62   civil twilight
-//    -12°       → 0.34   nautical twilight
-//    -18°       → 0.12   astronomical twilight
-//   ≤ -18°      → 0.06   night
-// piecewise-linear between anchors, clamped at both ends
+altitudeToLightness(altitudeDegrees): number  // 0..1
+//   +6°     → 1.00   full day
+//   -0.833° → 0.88   sunrise / sunset (refraction-corrected horizon)
+//   -6°     → 0.58   civil twilight ends
+//  -12°     → 0.32   nautical twilight ends
+//  -18°     → 0.14   astronomical twilight ends
+//  -30°     → 0.06   deep night floor
+// piecewise-linear between anchors, clamped outside the range
 ```
 
 `DayNightRing` emits one annular sector per sample, filled from a single-hue
@@ -166,6 +168,17 @@ README), filters to population ≥ 200,000, and emits both data files:
 Both outputs are committed, so builds are offline and reproducible. The script exists
 for regeneration, not as a build step.
 
+IANA zone names drift (`Europe/Kiev` → `Europe/Kyiv`, `Asia/Calcutta` → `Asia/Kolkata`).
+The lookup takes an exact hit first, then a small hand-written alias map, then falls
+back to scanning the table for a zone whose current UTC offset matches the device's.
+
+### Clock timezone
+
+The dial always shows the **device's** local time. When a manually chosen city sits in
+a different IANA zone, the location panel says so plainly ("Tokyo is UTC+9, your device
+is UTC+3 — the dial shows your local time") rather than silently reinterpreting the
+hands. Rendering a foreign timezone's wall clock is out of scope.
+
 ## Tests
 
 Vitest, pure logic only. The React layer stays a thin renderer over tested functions,
@@ -175,7 +188,7 @@ so it gets no test suite.
   endpoints match `toCartesian` at both angles
 - **sun** — altitude for fixture city/date/time against published values within 0.5°;
   Svalbard in June yields all-positive samples and in December all-negative
-- **lightness** — monotonic in altitude; clamped to `[0,1]`; exact at the four anchors
+- **lightness** — monotonic in altitude; clamped to `[0,1]`; exact at every anchor
 - **location** — the resolver chain with `navigator.geolocation` and
   `navigator.permissions` mocked: stored override wins; denied; timeout; unsupported;
   coordinates rounded; *Not now* persisted
