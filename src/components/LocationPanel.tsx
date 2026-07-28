@@ -1,0 +1,99 @@
+import { useEffect, useState } from 'react'
+import { loadCities, searchCities, type City } from '../lib/cities'
+import { deviceTimezone, utcOffsetLabel, type Place } from '../lib/location'
+
+interface Props {
+  place: Place
+  error: string | null
+  canLocate: boolean
+  onChooseCity: (city: City) => void
+  onUseDeviceLocation: () => void
+}
+
+const SOURCE_TEXT: Record<Place['source'], string> = {
+  manual: 'chosen by you',
+  gps: 'from your device',
+  timezone: 'guessed from your timezone',
+  fallback: 'unknown — pick a city below',
+}
+
+export function LocationPanel({
+  place,
+  error,
+  canLocate,
+  onChooseCity,
+  onUseDeviceLocation,
+}: Props) {
+  const [open, setOpen] = useState(false)
+  const [cities, setCities] = useState<City[] | null>(null)
+  const [query, setQuery] = useState('')
+
+  // The dataset is only fetched once the panel is actually opened.
+  useEffect(() => {
+    if (!open || cities) return
+    void loadCities().then(setCities)
+  }, [open, cities])
+
+  const results = cities ? searchCities(cities, query) : []
+  const zone = deviceTimezone()
+
+  return (
+    <section className="panel">
+      <p className="place">
+        <strong>{place.label}</strong> · {place.lat.toFixed(2)}, {place.lon.toFixed(2)}{' '}
+        <span className="muted">({SOURCE_TEXT[place.source]})</span>{' '}
+        <button type="button" className="link" onClick={() => setOpen(!open)}>
+          {open ? 'close' : 'change'}
+        </button>
+      </p>
+
+      {error && <p className="error">{error}</p>}
+
+      {open && (
+        <div className="panel-body">
+          {canLocate && (
+            <button type="button" onClick={onUseDeviceLocation}>
+              Use my location
+            </button>
+          )}
+
+          <label className="field">
+            <span>Or pick a city</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Start typing a city name"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+
+          {!cities && <p className="muted">Loading cities…</p>}
+
+          <ul className="results">
+            {results.map((city) => (
+              <li key={`${city.name}-${city.country}-${city.lat}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChooseCity(city)
+                    setOpen(false)
+                    setQuery('')
+                  }}
+                >
+                  {city.name}, {city.country}
+                  {city.tz !== zone && (
+                    <span className="muted">
+                      {' '}
+                      — {utcOffsetLabel(city.tz)}, your device is{' '}
+                      {utcOffsetLabel(zone)}; the dial keeps showing your local time
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  )
+}
