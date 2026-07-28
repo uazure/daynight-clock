@@ -1,8 +1,8 @@
 import { getPosition } from 'suncalc'
 import { altitudeToLightness } from './lightness'
 
-/** One sample per 6 minutes of the day. */
-export const SAMPLES_PER_DAY = 240
+/** One sample per minute of the day. */
+export const SAMPLES_PER_DAY = 1440
 export const MINUTES_PER_SAMPLE = (24 * 60) / SAMPLES_PER_DAY
 
 export interface DayProfile {

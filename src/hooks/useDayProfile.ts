@@ -8,7 +8,7 @@ import {
 
 /**
  * The day's light profile, recomputed only when the local date or the location
- * changes — 240 solar-position calls are far too many to repeat every tick.
+ * changes — 1440 solar-position calls are far too many to repeat every tick.
  */
 export function useDayProfile(now: Date, lat: number, lon: number): DayProfile {
   const dateKey = localDateKey(now)
