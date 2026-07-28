@@ -7,6 +7,13 @@ export interface Place {
   lon: number
   label: string
   source: LocationSource
+  /**
+   * IANA zone of the place itself, when known (only manually chosen cities
+   * carry one — `gps`/`timezone`/`fallback` places have no meaningful city
+   * zone of their own). Optional so existing stored overrides without it
+   * keep loading correctly.
+   */
+  tz?: string
 }
 
 export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unsupported'
@@ -111,7 +118,7 @@ export function loadOverride(): Place | null {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return null
 
-    const { lat, lon, label } = parsed as Partial<Place>
+    const { lat, lon, label, tz } = parsed as Partial<Place>
     if (typeof lat !== 'number' || typeof lon !== 'number') return null
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
 
@@ -120,6 +127,7 @@ export function loadOverride(): Place | null {
       lon: roundCoord(lon),
       label: typeof label === 'string' && label ? label : 'Saved location',
       source: 'manual',
+      ...(typeof tz === 'string' && tz ? { tz } : {}),
     }
   } catch {
     return null
@@ -132,6 +140,7 @@ export function saveOverride(place: Place): void {
     lon: roundCoord(place.lon),
     label: place.label,
     source: 'manual',
+    ...(place.tz ? { tz: place.tz } : {}),
   }
   try {
     // Safari private browsing (and a full storage quota) makes setItem throw

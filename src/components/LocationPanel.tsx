@@ -36,6 +36,7 @@ export function LocationPanel({
 
   const results = cities ? searchCities(cities, query) : []
   const zone = deviceTimezone()
+  const tzMismatch = place.tz && place.tz !== zone
 
   return (
     <section className="panel">
@@ -46,6 +47,19 @@ export function LocationPanel({
           {open ? 'close' : 'change'}
         </button>
       </p>
+
+      {/*
+        Persists after a city is chosen — not just while its row is visible
+        in the search results — because the dial always shows the device's
+        local time, never the selected city's, and that must stay visible
+        for as long as the two disagree.
+      */}
+      {tzMismatch && (
+        <p className="muted tz-note">
+          {utcOffsetLabel(place.tz ?? zone)} vs your {utcOffsetLabel(zone)}; the dial
+          shows your local time.
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 

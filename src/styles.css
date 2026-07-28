@@ -23,6 +23,16 @@ body {
 }
 
 /*
+ * Invisible to layout: its children (the clock stage and the panel) act as
+ * if they belonged directly to `.app`, preserving the flex sizing below.
+ * The element only exists so the consent modal has something to mark
+ * `inert` while it is open.
+ */
+.app-content {
+  display: contents;
+}
+
+/*
  * Takes whatever height is left over once the panel below has claimed its
  * own natural height. `min-height: 0` is required for a flex child to be
  * allowed to shrink below its content size — without it this item would
@@ -47,6 +57,12 @@ body {
   text-align: center;
   font-size: 0.85rem;
   opacity: 0.7;
+}
+
+.tz-note {
+  margin: 0.3rem 0 0;
+  text-align: center;
+  font-size: 0.8rem;
 }
 
 .scrim {

@@ -77,5 +77,6 @@ export function cityToPlace(city: City): Place {
     lon: roundCoord(city.lon),
     label: `${city.name}, ${city.country}`,
     source: 'manual',
+    tz: city.tz,
   }
 }

@@ -106,6 +106,16 @@ describe('the stored override', () => {
     localStorage.setItem('daynight.place', JSON.stringify({ label: 'nowhere' }))
     expect(loadOverride()).toBeNull()
   })
+
+  it('round-trips a city timezone when one is given', () => {
+    saveOverride({ ...kyiv, tz: 'Europe/Kyiv' })
+    expect(loadOverride()?.tz).toBe('Europe/Kyiv')
+  })
+
+  it('omits the timezone rather than inventing one when none is given', () => {
+    saveOverride(kyiv)
+    expect(loadOverride()?.tz).toBeUndefined()
+  })
 })
 
 describe('the dismissed-prompt flag', () => {

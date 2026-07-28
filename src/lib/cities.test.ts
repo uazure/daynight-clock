@@ -72,6 +72,7 @@ describe('cityToPlace', () => {
       lon: 30,
       label: 'Kyiv, UA',
       source: 'manual',
+      tz: 'Europe/Kiev',
     })
   })
 
@@ -79,5 +80,16 @@ describe('cityToPlace', () => {
     const place = cityToPlace(city('Kyiv', 'UA', 50.456789, 30.512345))
     expect(place.lat).toBe(50.46)
     expect(place.lon).toBe(30.51)
+  })
+
+  it("carries the city's timezone through", () => {
+    const tokyo: City = {
+      name: 'Tokyo',
+      country: 'JP',
+      lat: 35.69,
+      lon: 139.69,
+      tz: 'Asia/Tokyo',
+    }
+    expect(cityToPlace(tokyo).tz).toBe('Asia/Tokyo')
   })
 })

@@ -12,17 +12,26 @@ export default function App() {
 
   return (
     <main className="app">
-      <div className="clock-stage">
-        <Clock now={now} profile={profile} />
-      </div>
+      {/*
+        `display: contents` (see styles.css) keeps this wrapper invisible to
+        layout — the flex children below still belong directly to `.app` —
+        while giving the modal something to make `inert` when it is open, so
+        a keyboard or screen-reader user cannot reach the clock or panel
+        behind the scrim.
+      */}
+      <div className="app-content" inert={location.askingConsent}>
+        <div className="clock-stage">
+          <Clock now={now} profile={profile} />
+        </div>
 
-      <LocationPanel
-        place={location.place}
-        error={location.error}
-        canLocate={location.permission !== 'unsupported' && location.permission !== 'denied'}
-        onChooseCity={location.chooseCity}
-        onUseDeviceLocation={location.useDeviceLocation}
-      />
+        <LocationPanel
+          place={location.place}
+          error={location.error}
+          canLocate={location.permission !== 'unsupported' && location.permission !== 'denied'}
+          onChooseCity={location.chooseCity}
+          onUseDeviceLocation={location.useDeviceLocation}
+        />
+      </div>
 
       {location.askingConsent && (
         <GeolocationPrompt
