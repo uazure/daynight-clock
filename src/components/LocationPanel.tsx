@@ -84,8 +84,8 @@ export function LocationPanel({
                   {city.tz !== zone && (
                     <span className="muted">
                       {' '}
-                      — {utcOffsetLabel(city.tz)}, your device is{' '}
-                      {utcOffsetLabel(zone)}; the dial keeps showing your local time
+                      — {utcOffsetLabel(city.tz)} vs your {utcOffsetLabel(zone)}; dial
+                      shows your time
                     </span>
                   )}
                 </button>

@@ -12,7 +12,9 @@ export default function App() {
 
   return (
     <main className="app">
-      <Clock now={now} profile={profile} />
+      <div className="clock-stage">
+        <Clock now={now} profile={profile} />
+      </div>
 
       <LocationPanel
         place={location.place}
