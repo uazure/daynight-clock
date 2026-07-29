@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { loadCities, searchCities, type City } from '../lib/cities'
+import { loadCities, offsetsDiffer, searchCities, type City } from '../lib/cities'
 import { deviceTimezone, utcOffsetLabel, type Place } from '../lib/location'
 
 interface Props {
@@ -36,7 +36,10 @@ export function LocationPanel({
 
   const results = cities ? searchCities(cities, query) : []
   const zone = deviceTimezone()
-  const tzMismatch = place.tz && place.tz !== zone
+  // Compares current UTC offsets, not IANA zone names — Oslo and Prague are
+  // different zones that share an offset for much of the year, and there is
+  // nothing to warn about when the dial reads the same either way.
+  const tzMismatch = place.tz && offsetsDiffer(place.tz, zone)
 
   return (
     <section className="panel">
@@ -95,7 +98,7 @@ export function LocationPanel({
                   }}
                 >
                   {city.name}, {city.country}
-                  {city.tz !== zone && (
+                  {offsetsDiffer(city.tz, zone) && (
                     <span className="muted">
                       {' '}
                       — {utcOffsetLabel(city.tz)} vs your {utcOffsetLabel(zone)}; dial

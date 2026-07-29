@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cityToPlace, searchCities, type City } from './cities'
+import { cityToPlace, offsetsDiffer, searchCities, type City } from './cities'
 
 const city = (name: string, country = 'UA', lat = 50, lon = 30): City => ({
   name,
@@ -91,5 +91,22 @@ describe('cityToPlace', () => {
       tz: 'Asia/Tokyo',
     }
     expect(cityToPlace(tokyo).tz).toBe('Asia/Tokyo')
+  })
+})
+
+describe('offsetsDiffer', () => {
+  // Both zones sit at UTC+2 (CEST) in mid-July, despite different IANA names.
+  const midJuly = new Date('2026-07-15T12:00:00Z')
+
+  it('is false for zones that currently share an offset despite different names', () => {
+    expect(offsetsDiffer('Europe/Oslo', 'Europe/Prague', midJuly)).toBe(false)
+  })
+
+  it('is true for zones with genuinely different current offsets', () => {
+    expect(offsetsDiffer('Asia/Tokyo', 'Europe/Prague', midJuly)).toBe(true)
+  })
+
+  it('is false comparing a zone against itself', () => {
+    expect(offsetsDiffer('Europe/Prague', 'Europe/Prague', midJuly)).toBe(false)
   })
 })

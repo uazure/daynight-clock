@@ -1,4 +1,4 @@
-import { roundCoord, type Place } from './location'
+import { roundCoord, utcOffsetLabel, type Place } from './location'
 
 export interface City {
   name: string
@@ -69,6 +69,19 @@ export function searchCities(cities: City[], query: string, limit = 8): City[] {
     .sort((a, b) => a.score - b.score)
     .slice(0, limit)
     .map((entry) => entry.city)
+}
+
+/**
+ * Whether two zones currently read as different times of day. Compares the
+ * *current UTC offset*, not the IANA zone name: two zones can share an
+ * offset for part of the year (Oslo and Prague both sit at UTC+2 in July)
+ * while differing in name, and a name mismatch alone tells the user
+ * nothing they need to know — the dial reads identically for both. This
+ * also means two zones that share an offset for only part of the year will
+ * correctly start/stop differing across a DST transition.
+ */
+export function offsetsDiffer(tzA: string, tzB: string, at: Date = new Date()): boolean {
+  return utcOffsetLabel(tzA, at) !== utcOffsetLabel(tzB, at)
 }
 
 export function cityToPlace(city: City): Place {
