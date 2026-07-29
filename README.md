@@ -23,7 +23,7 @@ offline once loaded.
 ## How the shading works
 
 Rather than solving for sunrise and sunset and filling the wedges between them,
-the app samples the sun's altitude every six minutes of the local day
+the app samples the sun's altitude once per minute of the local day
 (`src/lib/sun.ts`) and maps each sample to a lightness value (`src/lib/lightness.ts`)
 using the conventional twilight boundaries as anchors:
 
