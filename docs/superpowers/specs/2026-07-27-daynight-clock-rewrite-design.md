@@ -39,6 +39,7 @@ src/
   lib/
     geometry.ts     angle mapping, polar↔cartesian, sector paths
     sun.ts          suncalc wrapper, day sampling
+    dial.ts         dial radii, wall-clock hour → sample index
     lightness.ts    altitude → luminance ramp
     location.ts     resolver chain, coarse geolocation, persistence
     cities.ts       lazy city dataset load + search
@@ -65,9 +66,16 @@ Instead, sample the sun's altitude across the local day:
 
 ```ts
 // lib/sun.ts
-sampleDay(dateKey, lat, lon): Float64Array
-// 240 samples, one per 6 minutes of local time, each SunCalc.getPosition(t).altitude
+sampleDay(dayStart: Date, lat, lon): DayProfile   // { altitudes, lightness }
+// 1440 samples, one per minute of the local day, each SunCalc.getPosition(t).altitude
 ```
+
+Sample `i` is **wall-clock minute `i`** of the local day, so sample times are built
+from the day's local date components (`new Date(y, m, d, 0, i)`), never by adding
+elapsed milliseconds to a start instant. `lib/dial.ts`'s `sampleIndexForHour` maps a
+wall-clock hour straight onto that index; the two definitions only agree if the UTC
+offset holds still, which it does not on the two DST transition days a year. Indexing
+by elapsed time rotates the whole ring an hour away from the hands on those days.
 
 ```ts
 // lib/lightness.ts — the only place brightness is decided
@@ -119,12 +127,19 @@ say where the number came from:
 
 1. `localStorage` override → `{ lat, lon, label, source: 'manual' }`
 2. coarse `navigator.geolocation` → `source: 'gps'`
-3. `Intl.DateTimeFormat().resolvedOptions().timeZone` → `timezone-coords.json` →
-   `source: 'timezone'`
-4. `0, 0` with a visible warning → `source: 'fallback'`
+3. `Intl.DateTimeFormat().resolvedOptions().timeZone` → `timezone-coords.json`
+   (exact hit or alias) → `source: 'timezone'`
+4. an unknown zone name, resolved to any zone at the same current UTC offset →
+   `source: 'offset'`. The longitude is about right and the latitude is a guess, so
+   this is tagged apart from step 3 and the panel says it is the weaker guess rather
+   than claiming a zone match.
+5. `0, 0` with a visible warning → `source: 'fallback'`
 
-Steps 1 and 3 are synchronous, so the first paint is already correct for the viewer's
-region; a GPS result only sharpens it.
+Steps 1, 3 and 4 are synchronous, so the first paint is already correct for the
+viewer's region; a GPS result only sharpens it. Precedence runs top down: a stored
+manual choice is an explicit decision and outranks a geolocation fix, including on a
+visit where the permission was granted earlier. `Use my location` in the panel clears
+the override, which is the way back to GPS.
 
 ### Consent
 
@@ -134,7 +149,8 @@ sunrise and sunset and never leave the device, offering *Use my location* and
 *Not now*.
 
 - `navigator.permissions.query({ name: 'geolocation' })` is `granted` → request
-  silently, no modal
+  silently, no modal — unless a manual override is stored, in which case nothing is
+  requested and the stored place stands
 - `prompt` → show the explanation modal
 - `denied` → never request; the location panel explains how to set a place manually
 - Permissions API unsupported → show the explanation modal
@@ -170,9 +186,13 @@ README), filters to population ≥ 200,000, and emits both data files:
 Both outputs are committed, so builds are offline and reproducible. The script exists
 for regeneration, not as a build step.
 
-IANA zone names drift (`Europe/Kiev` → `Europe/Kyiv`, `Asia/Calcutta` → `Asia/Kolkata`).
-The lookup takes an exact hit first, then a small hand-written alias map, then falls
-back to scanning the table for a zone whose current UTC offset matches the device's.
+IANA zone names drift (`Europe/Kiev` → `Europe/Kyiv`, `Asia/Calcutta` → `Asia/Kolkata`),
+and the table only holds zones that own a city, so `UTC` and the `Etc/*` names that
+privacy-hardened browsers and bare containers report are missing from it entirely. The
+lookup takes an exact hit first, then a small hand-written alias map (which maps those
+zero-offset names to a mid-latitude zone rather than letting the scan pick the
+alphabetically first equatorial one), then falls back to scanning the table for a zone
+whose current UTC offset matches the device's — tagged `offset`, per step 4 above.
 
 ### Clock timezone
 
@@ -188,8 +208,13 @@ so it gets no test suite.
 
 - **geometry** — angle mapping at 0/6/12/18h; polar↔cartesian round-trip; sector path
   endpoints match `toCartesian` at both angles
-- **sun** — altitude for fixture city/date/time against published values within 0.5°;
-  Svalbard in June yields all-positive samples and in December all-negative
+- **sun** — altitude for fixture city / local date / local hour against suncalc's own
+  values; sample `i` is wall-clock minute `i`, asserted on DST transition days too;
+  `sampleDay` composed with `sampleIndexForHour` puts the shading boundary at
+  suncalc's own sunrise and sunset on both 2026 transition days and on an ordinary
+  day; Svalbard in June yields all-positive samples and in December all-negative.
+  The run's timezone is pinned (`test.env.TZ`) to a DST-observing zone, since
+  wall-clock indexing makes every fixture zone-dependent
 - **lightness** — monotonic in altitude; clamped to `[0,1]`; exact at every anchor
 - **location** — the resolver chain with `navigator.geolocation` and
   `navigator.permissions` mocked: stored override wins; denied; timeout; unsupported;

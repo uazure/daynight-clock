@@ -14,6 +14,7 @@ const SOURCE_TEXT: Record<Place['source'], string> = {
   manual: 'chosen by you',
   gps: 'from your device',
   timezone: 'guessed from your timezone',
+  offset: 'rough guess from your UTC offset — pick a city to be sure',
   fallback: 'unknown — pick a city below',
 }
 

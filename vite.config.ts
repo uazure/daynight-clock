@@ -18,8 +18,11 @@ export default defineConfig({
         theme_color: '#171a1f',
         background_color: '#171a1f',
         display: 'standalone',
+        // The same file the tab icon uses — one SVG scales to every size a
+        // manifest icon is asked for, so a second identical copy bought
+        // nothing.
         icons: [
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
     }),
@@ -27,5 +30,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Pinned so the suite is machine-independent. `sampleDay` indexes samples
+    // by local wall-clock minute, which makes every fixture timezone-sensitive;
+    // a DST-observing zone is chosen deliberately so the transition-day tests
+    // actually have a transition to catch.
+    env: { TZ: 'Europe/Prague' },
   },
 })

@@ -43,10 +43,24 @@ dark. Solar positions come from [suncalc](https://github.com/mourner/suncalc).
 
 The clock needs only a rough position; it never asks for a precise one.
 
-1. A city you picked yourself, if you picked one.
-2. A coarse browser geolocation fix, rounded to about a kilometre — and only
-   after you have read the explanation and agreed. Nothing is requested on load.
-3. Otherwise, a guess from your device's timezone.
+1. A city you picked yourself, if you picked one. An explicit choice wins over
+   everything below it, on every later visit, until you clear it with
+   *Use my location*.
+2. A coarse browser geolocation fix, rounded to about a kilometre. Nothing is
+   requested on load: if the browser has not been asked yet, an explanation
+   comes first and the fix only happens if you agree. If you have already
+   granted the permission on a previous visit, the fix happens without another
+   dialog — the browser has no dialog left to show.
+3. Otherwise, a guess from your device's timezone: the largest city in that
+   IANA zone, or — if the zone name is one the bundled table does not carry —
+   any zone at the same UTC offset, which the panel labels as the rougher guess
+   it is.
+4. If even that fails, `0, 0`, shown as an unknown location with a prompt to
+   pick a city.
+
+Whichever tier answers, the dial always shows **your device's** local time. Pick
+Tokyo from Prague and the shading moves to Tokyo's daylight while the hands keep
+showing Prague's clock; the panel says so whenever the two offsets differ.
 
 Coordinates stay on your device. There is no server and no analytics.
 

@@ -1,6 +1,14 @@
 import timezoneCoords from '../data/timezone-coords.json'
 
-export type LocationSource = 'manual' | 'gps' | 'timezone' | 'fallback'
+/**
+ * Where a place's coordinates came from, in descending order of confidence.
+ * `timezone` means the device's zone was found in the table (directly or
+ * through an alias) — a real city in the right zone. `offset` is the weaker
+ * guess below it: the zone name was unknown, so any zone at the same current
+ * UTC offset was borrowed, which fixes the longitude but says nothing about
+ * the latitude, and latitude is what the dial actually depends on.
+ */
+export type LocationSource = 'manual' | 'gps' | 'timezone' | 'offset' | 'fallback'
 
 export interface Place {
   lat: number
@@ -27,8 +35,23 @@ const ZONES = timezoneCoords as unknown as Record<string, [number, number]>
  * Renamed zones, keyed by the retired name. The dataset uses current IANA
  * names throughout, so a device whose tzdata predates a rename reports a name
  * the table does not carry; these redirect it to the current spelling.
+ *
+ * The `UTC`/`Etc/*` entries are not renames but the other common gap: the
+ * table only holds zones that own a city, so it has no `UTC` row, while
+ * Firefox with `privacy.resistFingerprinting`, Tor Browser and UTC-configured
+ * containers all report exactly that. Left to the offset scan they resolved to
+ * the alphabetically first zero-offset zone, `Africa/Abidjan` at 5°N, giving a
+ * northern-European user an equatorial twelve-hour day. `Europe/London` is the
+ * mid-latitude zero-offset zone in the table (the alternative, the table's
+ * `Atlantic/Reykjavik`, sits at 64°N, near enough the Arctic Circle to be its
+ * own kind of wrong), and the coordinates are all this map is consulted for —
+ * London's summer DST never enters into it.
  */
 const ZONE_ALIASES: Record<string, string> = {
+  UTC: 'Europe/London',
+  'Etc/UTC': 'Europe/London',
+  'Etc/GMT': 'Europe/London',
+  'Etc/Greenwich': 'Europe/London',
   'Europe/Kiev': 'Europe/Kyiv',
   'Asia/Calcutta': 'Asia/Kolkata',
   'Asia/Saigon': 'Asia/Ho_Chi_Minh',
@@ -92,17 +115,30 @@ export function placeFromTimezone(): Place {
   const direct = ZONES[zone] ?? ZONES[ZONE_ALIASES[zone] ?? '']
 
   if (direct) {
-    return { lat: direct[0], lon: direct[1], label: zone, source: 'timezone' }
+    return {
+      lat: roundCoord(direct[0]),
+      lon: roundCoord(direct[1]),
+      label: zone,
+      source: 'timezone',
+    }
   }
 
-  // Unknown zone name: settle for any zone at the same current offset. Wrong
-  // latitude is possible, but far better than defaulting to the equator.
+  // Unknown zone name: settle for any zone at the same current offset. Better
+  // than defaulting to the equator, but the table is sorted alphabetically, so
+  // "first at this offset" skews low-latitude and the latitude can be badly
+  // wrong. Tagged `offset`, not `timezone`, so the panel does not present a
+  // borrowed latitude with the confidence of a real zone match.
   const now = new Date()
   const target = zoneOffsetMinutes(zone, now)
   if (target !== null) {
     for (const [candidate, coords] of Object.entries(ZONES)) {
       if (zoneOffsetMinutes(candidate, now) === target) {
-        return { lat: coords[0], lon: coords[1], label: zone, source: 'timezone' }
+        return {
+          lat: roundCoord(coords[0]),
+          lon: roundCoord(coords[1]),
+          label: zone,
+          source: 'offset',
+        }
       }
     }
   }

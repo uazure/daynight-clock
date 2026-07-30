@@ -24,12 +24,16 @@ export function Clock({ now, profile }: Props) {
       aria-label={`24-hour day and night clock, ${time}`}
     >
       <DayNightRing lightness={profile.lightness} />
-      <circle
-        r={DIAL.face}
-        fill="none"
-        stroke="hsl(220 14% 10% / 0.35)"
-        strokeWidth={1}
-      />
+      {/*
+        The dial's silhouette, so it has to read against both ends of the
+        lightness ramp and against the page behind it. A mid-tone hairline sits
+        between the extremes: contrast ratio ~3.7 against the brightest fill
+        (L 96%), ~4.3 against the darkest (L 10.5%) and ~4.6 against the page
+        (L 8%). The previous near-black stroke was darker than both the page and
+        the ramp floor, so the outline disappeared through the night sector and
+        for the whole of a polar night.
+      */}
+      <circle r={DIAL.face} fill="none" stroke="hsl(220 14% 52%)" strokeWidth={1} />
       <Ticks lightness={profile.lightness} />
       <HourLabels lightness={profile.lightness} />
       <Hands now={now} />

@@ -149,32 +149,96 @@ describe('storage failures (Safari private browsing, full quota)', () => {
   })
 })
 
+/**
+ * Reports `zone` as the device zone. When `offsetName` is given, that zone's
+ * own offset lookup answers with it (an `Intl.DateTimeFormat` `longOffset`
+ * value such as `GMT+05:30`); every other zone is handed to the real `Intl`, so
+ * the offset scan runs against genuine offsets. Without `offsetName` the zone
+ * has no readable offset at all, which is what a name the platform rejects
+ * looks like.
+ */
+function stubDeviceZone(zone: string, offsetName?: string): void {
+  const real = Intl.DateTimeFormat
+  // A `function`, not an arrow: callers use `new Intl.DateTimeFormat(...)`, and
+  // an arrow is not constructible — every lookup would throw instead of
+  // answering, which is precisely how the old version of the offset-scan test
+  // managed never to run the scan.
+  function impl(
+    locales?: Intl.LocalesArgument,
+    options?: Intl.DateTimeFormatOptions,
+  ): Intl.DateTimeFormat {
+    if (!options?.timeZone) {
+      return {
+        resolvedOptions: () => ({ timeZone: zone }),
+      } as unknown as Intl.DateTimeFormat
+    }
+    if (options.timeZone === zone) {
+      if (offsetName === undefined) throw new RangeError(`Invalid time zone: ${zone}`)
+      return {
+        formatToParts: () => [{ type: 'timeZoneName', value: offsetName }],
+      } as unknown as Intl.DateTimeFormat
+    }
+    return real(locales, options)
+  }
+
+  vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
+    impl as unknown as typeof Intl.DateTimeFormat,
+  )
+}
+
 describe('placeFromTimezone', () => {
-  it('resolves the device zone to coordinates', () => {
+  it('resolves the device zone to rounded coordinates', () => {
+    // The test run's zone is pinned to Europe/Prague in vite.config.ts, and the
+    // table carries it at 4dp — every path into the app rounds to 2.
     const place = placeFromTimezone()
-    expect(place.source).toBe('timezone')
-    expect(Number.isFinite(place.lat)).toBe(true)
-    expect(Number.isFinite(place.lon)).toBe(true)
-    expect(place.lat).toBeGreaterThanOrEqual(-90)
-    expect(place.lat).toBeLessThanOrEqual(90)
+    expect(place).toEqual({
+      lat: 50.09,
+      lon: 14.42,
+      label: 'Europe/Prague',
+      source: 'timezone',
+    })
   })
 
   it('resolves a renamed zone through the alias map', () => {
-    vi.spyOn(Intl, 'DateTimeFormat').mockReturnValue({
-      resolvedOptions: () => ({ timeZone: 'Europe/Kiev' }),
-    } as unknown as Intl.DateTimeFormat)
+    stubDeviceZone('Europe/Kiev')
 
     const place = placeFromTimezone()
     expect(place.source).toBe('timezone')
-    expect(place.lat).toBeCloseTo(50.4, 0)
-    expect(place.lon).toBeCloseTo(30.5, 0)
+    expect(place.lat).toBe(50.45)
+    expect(place.lon).toBe(30.52)
   })
 
-  it('falls back to 0,0 tagged fallback for an unknown zone with no offset match', () => {
-    vi.spyOn(Intl, 'DateTimeFormat').mockReturnValue({
-      resolvedOptions: () => ({ timeZone: 'Mars/Olympus_Mons' }),
-      format: () => '',
-    } as unknown as Intl.DateTimeFormat)
+  it('resolves a bare UTC device zone to a mid-latitude zone, not the equator', () => {
+    // Firefox with privacy.resistFingerprinting, Tor Browser and UTC-configured
+    // containers all report these; none of them owns a city, so none is in the
+    // table. Left to the offset scan they landed on Africa/Abidjan at 5°N.
+    for (const zone of ['UTC', 'Etc/UTC', 'Etc/GMT', 'Etc/Greenwich']) {
+      stubDeviceZone(zone, 'GMT')
+
+      const place = placeFromTimezone()
+      expect(place).toEqual({ lat: 51.51, lon: -0.13, label: zone, source: 'timezone' })
+      expect(place.lat).toBeGreaterThan(40)
+    }
+  })
+
+  it('borrows a same-offset zone for an unknown name, tagged offset not timezone', () => {
+    // Drives the scan itself: the name is absent from the table and from the
+    // alias map, but its offset reads fine, so the loop body runs. +05:30 is
+    // held by Asia/Colombo and Asia/Kolkata, neither of which observes DST, and
+    // the table is alphabetical, so the borrowed zone is Colombo year-round.
+    stubDeviceZone('Mars/Olympus_Mons', 'GMT+05:30')
+
+    const place = placeFromTimezone()
+    expect(place).toEqual({
+      lat: 6.94,
+      lon: 79.85,
+      label: 'Mars/Olympus_Mons',
+      source: 'offset',
+    })
+  })
+
+  it('falls back to 0,0 tagged fallback when an unknown zone has no readable offset', () => {
+    stubDeviceZone('Mars/Olympus_Mons')
 
     const place = placeFromTimezone()
     expect(place.source).toBe('fallback')

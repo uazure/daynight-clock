@@ -50,13 +50,22 @@ export function useLocation(): LocationState {
       if (cancelled) return
       setPermission(state)
 
+      // A manually chosen city is an explicit decision and outranks every
+      // automatic source, geolocation included — the spec's precedence is
+      // stored override first, with a GPS fix only sharpening a *guess*.
+      // Without this guard an already-granted permission would silently
+      // overwrite the saved city on every load, leaving the override in
+      // storage but never in effect. `useDeviceLocation()` stays the
+      // deliberate way back to GPS: it clears the override first.
+      const stored = resolveInitialPlace()
+      if (stored.source === 'manual') return
+
       if (state === 'granted') {
         void locate()
         return
       }
 
-      const stored = resolveInitialPlace()
-      if (state === 'prompt' && !isPromptDismissed() && stored.source !== 'manual') {
+      if (state === 'prompt' && !isPromptDismissed()) {
         setAskingConsent(true)
       }
     })

@@ -14,7 +14,11 @@ export const DIAL = {
   hub: 6,
 } as const
 
-/** Which day-profile sample covers a given hour of the local day. */
+/**
+ * Which day-profile sample covers a given hour of the local day. Relies on
+ * `sampleDay`'s invariant that sample `i` is wall-clock minute `i` of the local
+ * day — see the note on `sampleDay`.
+ */
 export function sampleIndexForHour(hour: number): number {
   const index = Math.round((hour / 24) * SAMPLES_PER_DAY)
   return ((index % SAMPLES_PER_DAY) + SAMPLES_PER_DAY) % SAMPLES_PER_DAY
