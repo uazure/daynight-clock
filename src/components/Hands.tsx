@@ -1,5 +1,5 @@
 import { DIAL } from '../lib/dial'
-import { angleForHour, toCartesian } from '../lib/geometry'
+import { angleForHour, angleForMinute, toCartesian } from '../lib/geometry'
 import { hoursSinceMidnightInZone, wallClockInZone } from '../lib/time'
 
 const HALO = 'hsl(220 12% 96% / 0.55)'
@@ -47,11 +47,10 @@ interface Props {
 
 export function Hands({ now, timeZone }: Props) {
   const hours = hoursSinceMidnightInZone(now, timeZone)
-  // One turn per hour: 6° per minute, 0 minutes straight up. Read in the
-  // place's zone, not the device's — a half- or quarter-hour offset zone
-  // (Kathmandu, +5:45) puts even the minute hand somewhere else.
+  // Read in the place's zone, not the device's — a half- or quarter-hour
+  // offset zone (Kathmandu, +5:45) puts even the minute hand somewhere else.
   const wall = wallClockInZone(now, timeZone)
-  const minuteAngle = (wall.minute + wall.second / 60) * 6
+  const minuteAngle = angleForMinute(wall.minute + wall.second / 60)
 
   return (
     <g>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { angleForHour, sectorPath, toCartesian } from './geometry'
+import { angleForHour, angleForMinute, sectorPath, toCartesian } from './geometry'
 
 const close = (a: number, b: number) => expect(a).toBeCloseTo(b, 9)
 
@@ -14,6 +14,26 @@ describe('angleForHour', () => {
     close(angleForHour(18), 90)
     close(angleForHour(6), -90)
     close(angleForHour(13.5), 22.5)
+  })
+})
+
+describe('angleForMinute', () => {
+  it('puts the top of the hour straight up', () => {
+    close(angleForMinute(0), 0)
+    close(angleForMinute(60), 360)
+  })
+
+  it('advances 6 degrees per minute, a full turn per hour', () => {
+    close(angleForMinute(15), 90)
+    close(angleForMinute(30), 180)
+    close(angleForMinute(45), 270)
+    close(angleForMinute(10.5), 63)
+  })
+
+  it('turns 24 times faster than the hour scale', () => {
+    // Both scales share one circle at different rates, which is why the two
+    // sets of numerals cannot be told apart by angle — see dial.test.ts.
+    close(angleForMinute(60), angleForHour(12 + 24) - angleForHour(12))
   })
 })
 

@@ -1,5 +1,7 @@
 /** Degrees of dial arc per hour: 360° / 24h. */
 export const HOUR_ANGLE_DEG = 15
+/** Degrees of dial arc per minute: 360° / 60min, one full turn per hour. */
+export const MINUTE_ANGLE_DEG = 6
 
 /**
  * Dial angle for an hour of the local day, in degrees.
@@ -8,6 +10,16 @@ export const HOUR_ANGLE_DEG = 15
  */
 export function angleForHour(hour: number): number {
   return (hour - 12) * HOUR_ANGLE_DEG
+}
+
+/**
+ * Dial angle for a minute of the hour, in degrees, on the same 0°-is-up
+ * clockwise convention. The minute scale turns 24 times faster than the hour
+ * scale, so the two share angles — which is why they are drawn on separate
+ * rings; see `dial.ts`.
+ */
+export function angleForMinute(minute: number): number {
+  return minute * MINUTE_ANGLE_DEG
 }
 
 export interface Point {

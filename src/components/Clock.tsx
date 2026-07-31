@@ -1,6 +1,7 @@
 import { DayNightRing } from './DayNightRing'
 import { Hands } from './Hands'
 import { HourLabels } from './HourLabels'
+import { MinuteLabels } from './MinuteLabels'
 import { Ticks } from './Ticks'
 import { DIAL } from '../lib/dial'
 import type { DayProfile } from '../lib/sun'
@@ -38,6 +39,7 @@ export function Clock({ now, profile, timeZone }: Props) {
       <circle r={DIAL.face} fill="none" stroke="var(--dial-outline)" strokeWidth={1} />
       <Ticks lightness={profile.lightness} />
       <HourLabels lightness={profile.lightness} />
+      <MinuteLabels />
       <Hands now={now} timeZone={timeZone} />
     </svg>
   )

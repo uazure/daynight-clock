@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   LIGHTNESS_ANCHORS,
   altitudeToLightness,
+  contrastHalo,
   contrastInk,
   lightnessToFill,
 } from './lightness'
@@ -79,5 +80,31 @@ describe('contrastInk', () => {
     // lightness > 0.5 → dark ink (12%), else light ink (92%)
     expect(contrastInk(0.7)).toBe('hsl(220 12% 12%)')
     expect(contrastInk(0.3)).toBe('hsl(220 12% 92%)')
+  })
+})
+
+describe('contrastHalo', () => {
+  /**
+   * `contrastInk` flips at lightness 0.5, and either side of that flip its
+   * ratio against the fill bottoms out near 3.5:1 — against 14:1 or better at
+   * both ends of the ramp. Outlining the ink in the opposite tone rescues it:
+   * the glyph then reads against its own halo rather than against whatever
+   * the dial happens to be doing underneath.
+   */
+  it('is always the opposite tone to the ink it outlines', () => {
+    for (const lightness of [0, 0.25, 0.49, 0.5, 0.51, 0.75, 1]) {
+      expect(contrastHalo(lightness)).not.toBe(contrastInk(lightness))
+    }
+  })
+
+  it('draws from the same two tones as the ink, never a third', () => {
+    const inks = new Set([contrastInk(0), contrastInk(1)])
+    expect(inks).toContain(contrastHalo(0))
+    expect(inks).toContain(contrastHalo(1))
+  })
+
+  it('flips at the same threshold as the ink', () => {
+    expect(contrastHalo(0.7)).toBe('hsl(220 12% 92%)')
+    expect(contrastHalo(0.3)).toBe('hsl(220 12% 12%)')
   })
 })

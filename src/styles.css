@@ -26,6 +26,10 @@
      either page background (~4.6:1 vs the dark L8%, ~3.5:1 vs the light
      L96%) — which is why one value serves both themes. */
   --dial-outline: hsl(220 14% 52%);
+  /* The minute band, outside the face, so this sits on the page rather than
+     on the shaded ring: one static value per theme, deliberately quiet
+     enough to stay subordinate to the hours (5.2:1 on the dark page). */
+  --minute-ink: hsl(220 12% 55%);
 }
 
 @media (prefers-color-scheme: light) {
@@ -41,6 +45,8 @@
     --btn-primary-text: hsl(220 12% 96%);
     --hover: hsl(220 12% 88%);
     --error: hsl(8 75% 38%);
+    /* Darker than the dark theme's, for the same 4.7:1 against a light page. */
+    --minute-ink: hsl(220 12% 45%);
   }
 }
 
@@ -56,6 +62,8 @@
   --btn-primary-text: hsl(220 12% 96%);
   --hover: hsl(220 12% 88%);
   --error: hsl(8 75% 38%);
+  /* Darker than the dark theme's, for the same 4.7:1 against a light page. */
+  --minute-ink: hsl(220 12% 45%);
 }
 
 * { box-sizing: border-box; }

@@ -17,14 +17,19 @@ sun is up.
     npm run build
 
 The output in `dist/` is fully static and uses relative paths, so it runs from any
-subdirectory, from a plain file, or from GitHub Pages. It is also a PWA and works
-offline once loaded.
+static host, from any subdirectory, or straight from a plain file. It is also a PWA
+and works offline once loaded.
+
+## Deployment
+
+Live at [daynight-clock.azure.pp.ua](https://daynight-clock.azure.pp.ua), on Cloudflare
+Pages.
 
 ## How the shading works
 
 Rather than solving for sunrise and sunset and filling the wedges between them,
-the app samples the sun's altitude once per minute of the local day
-(`src/lib/sun.ts`) and maps each sample to a lightness value (`src/lib/lightness.ts`)
+the app samples the sun's altitude once per minute of the day in that location's
+own timezone (`src/lib/sun.ts`) and maps each sample to a lightness value (`src/lib/lightness.ts`)
 using the conventional twilight boundaries as anchors:
 
 | Sun altitude | Meaning                     |
@@ -46,7 +51,7 @@ The clock needs only a rough position; it never asks for a precise one.
 1. A city you picked yourself, if you picked one. An explicit choice wins over
    everything below it, on every later visit, until you clear it with
    *Use my location*.
-2. A coarse browser geolocation fix, rounded to about a kilometre. Nothing is
+2. A coarse browser geolocation fix, rounded to about a kilometer. Nothing is
    requested on load: if the browser has not been asked yet, an explanation
    comes first and the fix only happens if you agree. If you have already
    granted the permission on a previous visit, the fix happens without another
@@ -58,9 +63,9 @@ The clock needs only a rough position; it never asks for a precise one.
 4. If even that fails, `0, 0`, shown as an unknown location with a prompt to
    pick a city.
 
-Whichever tier answers, the dial always shows **your device's** local time. Pick
-Tokyo from Prague and the shading moves to Tokyo's daylight while the hands keep
-showing Prague's clock; the panel says so whenever the two offsets differ.
+Whichever tier answers, the dial shows **that place's own** local time. Pick Tokyo
+from Prague and the shading moves to Tokyo's daylight and the hands move to Tokyo's
+clock; the panel notes both offsets whenever they differ.
 
 Coordinates stay on your device. There is no server and no analytics.
 
