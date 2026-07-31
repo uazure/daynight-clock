@@ -1,236 +1,28 @@
 <!doctype html>
-<html>
-<head>
-<title>24 hours clock (dev)</title>
-<script type='text/javascript' src='sunrise-sunset.js'></script>
-<script type='text/javascript' src='daynight-clock.js'></script>
-<script type='text/javascript' src='jquery-1.8.3.min.js'></script>
-<!-- <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAgrj58PbXr2YriiRDqbnL1RSqrCjdkglBijPNIIYrqkVvD1R4QxRl47Yh2D_0C1l5KXQJGrbkSDvXFA"
-      type="text/javascript"></script> -->
-
-<style type='text/css'>
-#daynight-clock {
-    /*border: 1px solid red;*/
-    margin: auto;
-}
-
-#daynight-clock-container {
-    text-align: center;
-    /*border: 1px solid blue;*/
-}
-
-.hide {display: none;}
-/*
- * canvas {width: 800px; height: 800px; border: 1px solid red;}
- */
-</style>
-
-</head>
-
-<body>
-
-<div id='message'></div>
-<div id='daynight-clock-container'>
-    <div id='daynight-clock'>
-        <canvas id='canvas' width='32' height='32'>Canvas</canvas>
-    </div>
-</div>
-
-<div id='map-container' class='hide'>
-<div align="center" id="map" style="width: 600px; height: 400px;"><br/></div>
-<div>Lat: <span id='lat'></span> Lon: <span id='lng'></span></div>
-<button id='map-done'>done</button>
-</div>
-
-
-
-<script type='text/javascript'>
-    function getLocation() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(usePosition, showError);
-            return true;
-        } else {
-            //Geolocation is not supported by this browser.
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Day/Night Clock</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- Matched to the two --bg values in styles.css; useTheme.ts rewrites
+         both to one colour while an explicit theme is pinned. -->
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171a1f" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f6" />
+    <!-- Apply a stored explicit theme before the stylesheet paints, so a
+         pinned light theme never flashes dark on load (or vice versa). -->
+    <script>
+      try {
+        var storedTheme = localStorage.getItem('daynight.theme')
+        if (storedTheme === 'light' || storedTheme === 'dark') {
+          document.documentElement.dataset.theme = storedTheme
         }
-        return false;
-    }
-
-    function showPosition(position) {
-        console.log('geolocation position: %o' + position);
-        x.innerHTML = "Latitude: " + position.coords.latitude + "<br>Longitude: " + position.coords.longitude;
-    }
-
-    function usePosition(position) {
-        console.log('geolocation from user agent is %o', position);
-        createClock(position.coords);
-    }
-
-    function showError(error) {
-        switch(error.code) {
-            case error.PERMISSION_DENIED:
-                console.log('User denied the request for Geolocation.');
-                x=document.getElementById('message');
-                x.innerHTML = "User denied the request for Geolocation."
-                getCoordsFromMap();
-                break;
-            case error.POSITION_UNAVAILABLE:
-                console.log("Location information is unavailable.");
-                x=document.getElementById('message');
-                x.innerHTML = "Location information is unavailable."
-                getCoordsFromMap();
-                break;
-            case error.TIMEOUT:
-                //x.innerHTML = "The request to get user location timed out."
-                getCoordsFromMap();
-                break;
-            case error.UNKNOWN_ERROR:
-                //x.innerHTML = "An unknown error occurred."
-                getCoordsFromMap();
-                break;
-        }
-    }
-    
-    function createClock(geolocation) {
-        var canvasElement=document.getElementById('canvas');
-        var clockSize=Math.min(window.innerWidth, window.innerHeight);
-        clockSize*=0.95; // -5% to look ok
-        canvasElement.width=clockSize;
-        canvasElement.height=clockSize;
-        //if user agent can not provide coordinates 
-        
-        var clock = new ClockClass(canvas, geolocation.latitude, geolocation.longitude, new Date());
-        clock.settings.displayMinutePointer = false;
-        clock.settings.displayNthHourTickStrong = 3;
-        clock.settings.displayNthHourTickEmphasize = 0;
-        clock.settings.displayNthHourLabel = 3;
-        clock.settings.displayNthMinuteLabel = 0;
-    
-        clock.render();
-        //update clock every 2 seconds (30 times per minute)
-        window.setInterval(function(){
-            window.requestAnimFrame(function(/* time */ time){
-                clock.time=new Date();
-                clock.render();
-            });
-        }, 2e3);
-    }
-    
-    function getCoordsFromMap() {
-        $('#map-container').show();
-        $('#map-done').click(function() {
-            console.log('get coordinates and render clock!');
-            $('#map-container').hide();
-            var coords={};
-            coords.latitude=$('#lat').text();
-            coords.longitude=$('#lng').text();
-            createClock(coords);
-        });
-        if (GBrowserIsCompatible()) {
-
-            var map = new GMap2(document.getElementById("map"));
-        
-        map.addControl(new GSmallMapControl());
-        map.addControl(new GMapTypeControl());
-        var center = new GLatLng(48.89364,      2.33739);
-        map.setCenter(center, 15);
-        geocoder = new GClientGeocoder();
-        var marker = new GMarker(center, {draggable: true});  
-        map.addOverlay(marker);
-        document.getElementById("lat").innerHTML = center.lat().toFixed(5);
-        document.getElementById("lng").innerHTML = center.lng().toFixed(5);
-
-      GEvent.addListener(marker, "dragend", function() {
-       var point = marker.getPoint();
-          map.panTo(point);
-       document.getElementById("lat").innerHTML = point.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = point.lng().toFixed(5);
-
-        });
-
-
-     GEvent.addListener(map, "moveend", function() {
-          map.clearOverlays();
-    var center = map.getCenter();
-          var marker = new GMarker(center, {draggable: true});
-          map.addOverlay(marker);
-          document.getElementById("lat").innerHTML = center.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = center.lng().toFixed(5);
-
-
-     GEvent.addListener(marker, "dragend", function() {
-      var point =marker.getPoint();
-         map.panTo(point);
-      document.getElementById("lat").innerHTML = point.lat().toFixed(5);
-         document.getElementById("lng").innerHTML = point.lng().toFixed(5);
-
-        });
- 
-        });
-
-      }
-    }
-
-       function showAddress(address) {
-       var map = new GMap2(document.getElementById("map"));
-       map.addControl(new GSmallMapControl());
-       map.addControl(new GMapTypeControl());
-       if (geocoder) {
-        geocoder.getLatLng(
-          address,
-          function(point) {
-            if (!point) {
-              alert(address + " not found");
-            } else {
-          document.getElementById("lat").innerHTML = point.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = point.lng().toFixed(5);
-         map.clearOverlays()
-            map.setCenter(point, 14);
-   var marker = new GMarker(point, {draggable: true});  
-         map.addOverlay(marker);
-
-        GEvent.addListener(marker, "dragend", function() {
-      var pt = marker.getPoint();
-         map.panTo(pt);
-      document.getElementById("lat").innerHTML = pt.lat().toFixed(5);
-         document.getElementById("lng").innerHTML = pt.lng().toFixed(5);
-        });
-
-
-     GEvent.addListener(map, "moveend", function() {
-          map.clearOverlays();
-    var center = map.getCenter();
-          var marker = new GMarker(center, {draggable: true});
-          map.addOverlay(marker);
-          document.getElementById("lat").innerHTML = center.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = center.lng().toFixed(5);
-
-     GEvent.addListener(marker, "dragend", function() {
-     var pt = marker.getPoint();
-        map.panTo(pt);
-    document.getElementById("lat").innerHTML = pt.lat().toFixed(5);
-       document.getElementById("lng").innerHTML = pt.lng().toFixed(5);
-        });
- 
-        });
-
-            }
-          }
-        );
-      }
-    }
-
-
-
-window.onload = function() {
-    if (getLocation() === false) {
-        console.log('browser can not provide coordinates');
-        //provide map to get coordinates from
-    }
-}
-
-
-</script>
-
-</body>
+      } catch (e) {}
+    </script>
+    <meta name="description" content="A 24-hour analog clock whose dial is shaded by daylight, twilight and night at your location." />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
-
