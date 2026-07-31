@@ -8,12 +8,15 @@ import type { DayProfile } from '../lib/sun'
 interface Props {
   now: Date
   profile: DayProfile
+  /** IANA zone whose wall clock the dial shows. */
+  timeZone: string
 }
 
-export function Clock({ now, profile }: Props) {
+export function Clock({ now, profile, timeZone }: Props) {
   const time = now.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone,
   })
 
   return (
@@ -26,17 +29,16 @@ export function Clock({ now, profile }: Props) {
       <DayNightRing lightness={profile.lightness} />
       {/*
         The dial's silhouette, so it has to read against both ends of the
-        lightness ramp and against the page behind it. A mid-tone hairline sits
-        between the extremes: contrast ratio ~3.7 against the brightest fill
-        (L 96%), ~4.3 against the darkest (L 10.5%) and ~4.6 against the page
-        (L 8%). The previous near-black stroke was darker than both the page and
-        the ramp floor, so the outline disappeared through the night sector and
-        for the whole of a polar night.
+        lightness ramp and against the page behind it — a mid-tone hairline
+        between the extremes. The value and its measured contrast ratios live
+        with the other theme tokens in styles.css; a near-black stroke once
+        disappeared through the night sector and for the whole of a polar
+        night, which is why it is a token and not black.
       */}
-      <circle r={DIAL.face} fill="none" stroke="hsl(220 14% 52%)" strokeWidth={1} />
+      <circle r={DIAL.face} fill="none" stroke="var(--dial-outline)" strokeWidth={1} />
       <Ticks lightness={profile.lightness} />
       <HourLabels lightness={profile.lightness} />
-      <Hands now={now} />
+      <Hands now={now} timeZone={timeZone} />
     </svg>
   )
 }

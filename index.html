@@ -5,7 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Day/Night Clock</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <meta name="theme-color" content="#171a1f" />
+    <!-- Matched to the two --bg values in styles.css; useTheme.ts rewrites
+         both to one colour while an explicit theme is pinned. -->
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171a1f" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f6" />
+    <!-- Apply a stored explicit theme before the stylesheet paints, so a
+         pinned light theme never flashes dark on load (or vice versa). -->
+    <script>
+      try {
+        var storedTheme = localStorage.getItem('daynight.theme')
+        if (storedTheme === 'light' || storedTheme === 'dark') {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (e) {}
+    </script>
     <meta name="description" content="A 24-hour analog clock whose dial is shaded by daylight, twilight and night at your location." />
   </head>
   <body>

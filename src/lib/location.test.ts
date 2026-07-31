@@ -196,6 +196,7 @@ describe('placeFromTimezone', () => {
       lon: 14.42,
       label: 'Europe/Prague',
       source: 'timezone',
+      tz: 'Europe/Prague',
     })
   })
 
@@ -216,7 +217,15 @@ describe('placeFromTimezone', () => {
       stubDeviceZone(zone, 'GMT')
 
       const place = placeFromTimezone()
-      expect(place).toEqual({ lat: 51.51, lon: -0.13, label: zone, source: 'timezone' })
+      expect(place).toEqual({
+        lat: 51.51,
+        lon: -0.13,
+        label: zone,
+        source: 'timezone',
+        // The device's own zone, not the aliased coordinate donor — the dial
+        // must run on UTC, not on London's summer clock.
+        tz: zone,
+      })
       expect(place.lat).toBeGreaterThan(40)
     }
   })
@@ -234,6 +243,9 @@ describe('placeFromTimezone', () => {
       lon: 79.85,
       label: 'Mars/Olympus_Mons',
       source: 'offset',
+      // The zone read fine (its offset answered), so the dial runs on it even
+      // though the coordinates are borrowed from another zone at that offset.
+      tz: 'Mars/Olympus_Mons',
     })
   })
 
@@ -244,6 +256,8 @@ describe('placeFromTimezone', () => {
     expect(place.source).toBe('fallback')
     expect(place.lat).toBe(0)
     expect(place.lon).toBe(0)
+    // A zone whose offset cannot be read cannot drive the dial either.
+    expect(place.tz).toBeUndefined()
   })
 })
 
@@ -328,7 +342,14 @@ describe('requestCoarsePosition', () => {
     })
 
     const place = await requestCoarsePosition()
-    expect(place).toEqual({ lat: 50.46, lon: 30.51, label: 'Your location', source: 'gps' })
+    expect(place).toEqual({
+      lat: 50.46,
+      lon: 30.51,
+      label: 'Your location',
+      source: 'gps',
+      // A GPS fix runs on the device zone — Europe/Prague in the test run.
+      tz: 'Europe/Prague',
+    })
   })
 
   it('rejects when the browser has no geolocation', async () => {

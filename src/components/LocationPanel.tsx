@@ -1,13 +1,11 @@
-import { useEffect, useState } from 'react'
-import { loadCities, offsetsDiffer, searchCities, type City } from '../lib/cities'
+import { offsetsDiffer } from '../lib/cities'
 import { deviceTimezone, utcOffsetLabel, type Place } from '../lib/location'
+import { ThemeToggle } from './ThemeToggle'
 
 interface Props {
   place: Place
   error: string | null
-  canLocate: boolean
-  onChooseCity: (city: City) => void
-  onUseDeviceLocation: () => void
+  onOpenPicker: () => void
 }
 
 const SOURCE_TEXT: Record<Place['source'], string> = {
@@ -18,28 +16,17 @@ const SOURCE_TEXT: Record<Place['source'], string> = {
   fallback: 'unknown — pick a city below',
 }
 
-export function LocationPanel({
-  place,
-  error,
-  canLocate,
-  onChooseCity,
-  onUseDeviceLocation,
-}: Props) {
-  const [open, setOpen] = useState(false)
-  const [cities, setCities] = useState<City[] | null>(null)
-  const [query, setQuery] = useState('')
-
-  // The dataset is only fetched once the panel is actually opened.
-  useEffect(() => {
-    if (!open || cities) return
-    void loadCities().then(setCities)
-  }, [open, cities])
-
-  const results = cities ? searchCities(cities, query) : []
+/**
+ * The one-line footer under the clock. Deliberately holds nothing that grows
+ * or shrinks after mount — the chooser lives in `CityPickerModal`, over the
+ * clock, precisely so this panel's height (and therefore the dial's size)
+ * never changes.
+ */
+export function LocationPanel({ place, error, onOpenPicker }: Props) {
   const zone = deviceTimezone()
   // Compares current UTC offsets, not IANA zone names — Oslo and Prague are
   // different zones that share an offset for much of the year, and there is
-  // nothing to warn about when the dial reads the same either way.
+  // nothing to note when the dial reads the same either way.
   const tzMismatch = place.tz && offsetsDiffer(place.tz, zone)
 
   return (
@@ -47,71 +34,25 @@ export function LocationPanel({
       <p className="place">
         <strong>{place.label}</strong> · {place.lat.toFixed(2)}, {place.lon.toFixed(2)}{' '}
         <span className="muted">({SOURCE_TEXT[place.source]})</span>{' '}
-        <button type="button" className="link" onClick={() => setOpen(!open)}>
-          {open ? 'close' : 'change'}
-        </button>
+        <button type="button" className="link" onClick={onOpenPicker}>
+          change
+        </button>{' '}
+        · <ThemeToggle />
       </p>
 
       {/*
-        Persists after a city is chosen — not just while its row is visible
-        in the search results — because the dial always shows the device's
-        local time, never the selected city's, and that must stay visible
-        for as long as the two disagree.
+        Persists after a city is chosen — the dial runs on the chosen place's
+        clock, and while that clock disagrees with the device's the reader
+        deserves a standing reminder of whose time they are looking at.
       */}
       {tzMismatch && (
         <p className="muted tz-note">
-          {utcOffsetLabel(place.tz ?? zone)} vs your {utcOffsetLabel(zone)}; the dial
-          shows your local time.
+          showing {utcOffsetLabel(place.tz ?? zone)} time; your clock is{' '}
+          {utcOffsetLabel(zone)}
         </p>
       )}
 
       {error && <p className="error">{error}</p>}
-
-      {open && (
-        <div className="panel-body">
-          {canLocate && (
-            <button type="button" onClick={onUseDeviceLocation}>
-              Use my location
-            </button>
-          )}
-
-          <label className="field">
-            <span>Or pick a city</span>
-            <input
-              type="search"
-              value={query}
-              placeholder="Start typing a city name"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-
-          {!cities && <p className="muted">Loading cities…</p>}
-
-          <ul className="results">
-            {results.map((city) => (
-              <li key={`${city.name}-${city.country}-${city.lat}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChooseCity(city)
-                    setOpen(false)
-                    setQuery('')
-                  }}
-                >
-                  {city.name}, {city.country}
-                  {offsetsDiffer(city.tz, zone) && (
-                    <span className="muted">
-                      {' '}
-                      — {utcOffsetLabel(city.tz)} vs your {utcOffsetLabel(zone)}; dial
-                      shows your time
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </section>
   )
 }

@@ -1,4 +1,5 @@
 import timezoneCoords from '../data/timezone-coords.json'
+import { zoneOffsetMinutes } from './time'
 
 /**
  * Where a place's coordinates came from, in descending order of confidence.
@@ -16,10 +17,11 @@ export interface Place {
   label: string
   source: LocationSource
   /**
-   * IANA zone of the place itself, when known (only manually chosen cities
-   * carry one — `gps`/`timezone`/`fallback` places have no meaningful city
-   * zone of their own). Optional so existing stored overrides without it
-   * keep loading correctly.
+   * IANA zone the dial should run on: the city's own zone for `manual`
+   * places, the device zone for `gps`/`timezone`/`offset` ones (a GPS fix is
+   * wherever the device is). Absent only for `fallback` places and stored
+   * overrides written before this field existed — renderers fall back to
+   * `deviceTimezone()` then.
    */
   tz?: string
 }
@@ -71,29 +73,6 @@ export function deviceTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-/** Current UTC offset of a zone, in minutes. */
-function zoneOffsetMinutes(timeZone: string, at: Date): number | null {
-  try {
-    const name = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      timeZoneName: 'longOffset',
-    })
-      .formatToParts(at)
-      .find((part) => part.type === 'timeZoneName')?.value
-
-    if (!name) return null
-    if (name === 'GMT') return 0
-
-    const match = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(name)
-    if (!match) return null
-
-    const sign = match[1] === '-' ? -1 : 1
-    return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0))
-  } catch {
-    return null
-  }
-}
-
 /** `UTC`, `UTC+9`, `UTC-5`, `UTC+5:30`. */
 export function utcOffsetLabel(timeZone: string, at: Date = new Date()): string {
   const minutes = zoneOffsetMinutes(timeZone, at)
@@ -120,6 +99,9 @@ export function placeFromTimezone(): Place {
       lon: roundCoord(direct[1]),
       label: zone,
       source: 'timezone',
+      // The device's own zone name, not the alias target: a `UTC` device gets
+      // London's *coordinates*, but its dial must not follow London's DST.
+      tz: zone,
     }
   }
 
@@ -138,6 +120,9 @@ export function placeFromTimezone(): Place {
           lon: roundCoord(coords[1]),
           label: zone,
           source: 'offset',
+          // The zone answered an offset query, so it can drive the dial even
+          // though its coordinates had to be borrowed.
+          tz: zone,
         }
       }
     }
@@ -252,6 +237,9 @@ export function requestCoarsePosition(): Promise<Place> {
           lon: roundCoord(position.coords.longitude),
           label: 'Your location',
           source: 'gps',
+          // A GPS fix is wherever the device is, so the device zone is the
+          // fix's own zone.
+          tz: deviceTimezone(),
         }),
       (error) => reject(new Error(error.message || 'Could not get your location')),
       { enableHighAccuracy: false, maximumAge: 900_000, timeout: 8_000 },

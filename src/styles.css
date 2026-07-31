@@ -1,7 +1,61 @@
+/*
+ * Chrome colours only — the dial's own colours (ring ramp, tick/label ink,
+ * hands) are semantic day-vs-night values decided in src/lib/lightness.ts
+ * and Hands.tsx, and deliberately do not change with the theme.
+ *
+ * Dark is the base; the light palette appears twice below because plain CSS
+ * cannot join a media query and an attribute selector into one rule. Keep
+ * the two light blocks identical. Theme selection: no `data-theme` attribute
+ * means "follow the device" (set before first paint by the boot script in
+ * index.html), `light`/`dark` pin it via the toggle.
+ */
 :root {
-  --ink: hsl(220 14% 10%);
-  --paper: hsl(220 12% 96%);
-  color-scheme: light dark;
+  color-scheme: dark;
+  --bg: hsl(220 10% 8%);
+  --text: hsl(220 12% 96%);
+  --scrim: hsl(220 20% 4% / 0.7);
+  --sheet-bg: hsl(220 14% 14%);
+  --sheet-shadow: hsl(220 30% 2% / 0.5);
+  --border: hsl(220 12% 40%);
+  --btn-primary-bg: hsl(220 12% 92%);
+  --btn-primary-text: hsl(220 14% 10%);
+  --hover: hsl(220 12% 20%);
+  --error: hsl(8 70% 70%);
+  /* The dial's silhouette. A mid-tone that reads against both ends of the
+     ring's lightness ramp (~3.7:1 vs L96%, ~4.3:1 vs L10.5%) and against
+     either page background (~4.6:1 vs the dark L8%, ~3.5:1 vs the light
+     L96%) — which is why one value serves both themes. */
+  --dial-outline: hsl(220 14% 52%);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --bg: hsl(220 12% 96%);
+    --text: hsl(220 14% 10%);
+    --scrim: hsl(220 20% 10% / 0.35);
+    --sheet-bg: hsl(220 14% 99%);
+    --sheet-shadow: hsl(220 30% 20% / 0.25);
+    --border: hsl(220 12% 62%);
+    --btn-primary-bg: hsl(220 14% 15%);
+    --btn-primary-text: hsl(220 12% 96%);
+    --hover: hsl(220 12% 88%);
+    --error: hsl(8 75% 38%);
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: hsl(220 12% 96%);
+  --text: hsl(220 14% 10%);
+  --scrim: hsl(220 20% 10% / 0.35);
+  --sheet-bg: hsl(220 14% 99%);
+  --sheet-shadow: hsl(220 30% 20% / 0.25);
+  --border: hsl(220 12% 62%);
+  --btn-primary-bg: hsl(220 14% 15%);
+  --btn-primary-text: hsl(220 12% 96%);
+  --hover: hsl(220 12% 88%);
+  --error: hsl(8 75% 38%);
 }
 
 * { box-sizing: border-box; }
@@ -9,8 +63,8 @@
 html, body, #root { height: 100%; margin: 0; }
 
 body {
-  background: hsl(220 10% 8%);
-  color: var(--paper);
+  background: var(--bg);
+  color: var(--text);
   font: 16px/1.4 system-ui, sans-serif;
 }
 
@@ -25,8 +79,8 @@ body {
 /*
  * Invisible to layout: its children (the clock stage and the panel) act as
  * if they belonged directly to `.app`, preserving the flex sizing below.
- * The element only exists so the consent modal has something to mark
- * `inert` while it is open.
+ * The element only exists so the modals (consent, city picker) have
+ * something to mark `inert` while one of them is open.
  */
 .app-content {
   display: contents;
@@ -71,15 +125,18 @@ body {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: hsl(220 20% 4% / 0.7);
+  background: var(--scrim);
 }
 
 .sheet {
+  /* Full width up to the cap, so the sheet's size comes from the viewport,
+     not from whatever its content happens to be at the moment. */
+  width: 100%;
   max-width: 34rem;
   padding: 1.5rem;
   border-radius: 0.75rem;
-  background: hsl(220 14% 14%);
-  box-shadow: 0 1rem 3rem hsl(220 30% 2% / 0.5);
+  background: var(--sheet-bg);
+  box-shadow: 0 1rem 3rem var(--sheet-shadow);
 }
 
 .sheet h2 { margin: 0 0 0.75rem; font-size: 1.15rem; }
@@ -95,7 +152,7 @@ body {
 
 button {
   padding: 0.45rem 0.9rem;
-  border: 1px solid hsl(220 12% 40%);
+  border: 1px solid var(--border);
   border-radius: 0.4rem;
   background: transparent;
   color: inherit;
@@ -103,22 +160,22 @@ button {
   cursor: pointer;
 }
 
-button.primary { background: hsl(220 12% 92%); color: hsl(220 14% 10%); border-color: transparent; }
+button.primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: transparent; }
 button.link { padding: 0; border: none; text-decoration: underline; }
 
 /*
  * Never grows or shrinks in the flex column — it always takes its natural
  * (content-driven) height, and the clock stage above yields whatever is
- * left. The result list below is separately capped so that natural height
- * stays bounded no matter how many results match.
+ * left. Everything that could change height after mount (the city chooser)
+ * lives in the picker modal instead, so the dial's size never moves.
  */
 .panel { flex: 0 0 auto; font-size: 0.85rem; text-align: center; }
-.panel-body { display: grid; gap: 0.75rem; justify-items: center; margin-top: 0.75rem; }
+.picker-body { display: grid; gap: 0.75rem; justify-items: center; margin-top: 0.75rem; }
 .field { display: grid; gap: 0.25rem; }
 
 .field input {
   padding: 0.4rem 0.6rem;
-  border: 1px solid hsl(220 12% 40%);
+  border: 1px solid var(--border);
   border-radius: 0.4rem;
   background: transparent;
   color: inherit;
@@ -126,15 +183,15 @@ button.link { padding: 0; border: none; text-decoration: underline; }
 }
 
 /*
- * Bounded so the panel's height stays predictable regardless of how many
- * results match — each result can carry a timezone note, and eight of them
- * unbounded would squeeze the clock stage down to almost nothing. 12rem
- * (192px) shows roughly five one-line results before scrolling, which is
- * enough to see a match without the list dominating the layout.
+ * A fixed height, not a cap: inside the picker sheet the list appearing and
+ * emptying as the user types would otherwise resize the whole dialog on
+ * every keystroke. 12rem (192px) shows roughly five one-line results before
+ * scrolling, which is enough to see a match without the list dominating.
  */
 .results {
+  width: 100%;
   max-width: 34rem;
-  max-height: 12rem;
+  height: 12rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -152,7 +209,7 @@ button.link { padding: 0; border: none; text-decoration: underline; }
   text-overflow: ellipsis;
 }
 
-.results button:hover { background: hsl(220 12% 20%); }
+.results button:hover { background: var(--hover); }
 
 .muted { opacity: 0.6; }
-.error { color: hsl(8 70% 70%); }
+.error { color: var(--error); }

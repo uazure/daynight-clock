@@ -1,6 +1,6 @@
 import { DIAL } from '../lib/dial'
 import { angleForHour, toCartesian } from '../lib/geometry'
-import { hoursSinceLocalMidnight } from '../lib/sun'
+import { hoursSinceMidnightInZone, wallClockInZone } from '../lib/time'
 
 const HALO = 'hsl(220 12% 96% / 0.55)'
 const CORE = 'hsl(220 14% 10%)'
@@ -41,12 +41,17 @@ function Hand({ angle, length, width }: HandProps) {
 
 interface Props {
   now: Date
+  /** IANA zone whose wall clock the hands show. */
+  timeZone: string
 }
 
-export function Hands({ now }: Props) {
-  const hours = hoursSinceLocalMidnight(now)
-  // One turn per hour: 6° per minute, 0 minutes straight up.
-  const minuteAngle = (now.getMinutes() + now.getSeconds() / 60) * 6
+export function Hands({ now, timeZone }: Props) {
+  const hours = hoursSinceMidnightInZone(now, timeZone)
+  // One turn per hour: 6° per minute, 0 minutes straight up. Read in the
+  // place's zone, not the device's — a half- or quarter-hour offset zone
+  // (Kathmandu, +5:45) puts even the minute hand somewhere else.
+  const wall = wallClockInZone(now, timeZone)
+  const minuteAngle = (wall.minute + wall.second / 60) * 6
 
   return (
     <g>
