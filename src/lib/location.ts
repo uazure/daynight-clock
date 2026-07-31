@@ -1,5 +1,5 @@
-import timezoneCoords from '../data/timezone-coords.json'
-import { zoneOffsetMinutes } from './time'
+import timezoneCoords from '../data/timezone-coords.json';
+import { zoneOffsetMinutes } from './time';
 
 /**
  * Where a place's coordinates came from, in descending order of confidence.
@@ -9,13 +9,26 @@ import { zoneOffsetMinutes } from './time'
  * UTC offset was borrowed, which fixes the longitude but says nothing about
  * the latitude, and latitude is what the dial actually depends on.
  */
-export type LocationSource = 'manual' | 'gps' | 'timezone' | 'offset' | 'fallback'
+export type LocationSource = 'manual' | 'gps' | 'timezone' | 'offset' | 'fallback';
+
+/**
+ * The sources that are a guess rather than a statement — the ones the location
+ * hint offers to improve. `manual` and `gps` are excluded because there is
+ * nothing better to offer someone who has already said where they are.
+ */
+export type GuessedSource = Extract<LocationSource, 'timezone' | 'offset' | 'fallback'>;
+
+const GUESSED_SOURCES: ReadonlySet<LocationSource> = new Set<LocationSource>(['timezone', 'offset', 'fallback']);
+
+export function isGuessed(source: LocationSource): source is GuessedSource {
+  return GUESSED_SOURCES.has(source);
+}
 
 export interface Place {
-  lat: number
-  lon: number
-  label: string
-  source: LocationSource
+  lat: number;
+  lon: number;
+  label: string;
+  source: LocationSource;
   /**
    * IANA zone the dial should run on: the city's own zone for `manual`
    * places, the device zone for `gps`/`timezone`/`offset` ones (a GPS fix is
@@ -23,15 +36,15 @@ export interface Place {
    * overrides written before this field existed — renderers fall back to
    * `deviceTimezone()` then.
    */
-  tz?: string
+  tz?: string;
 }
 
-export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unsupported'
+export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unsupported';
 
-const PLACE_KEY = 'daynight.place'
-const PROMPT_KEY = 'daynight.geoPromptDismissed'
+const PLACE_KEY = 'daynight.place';
+const PROMPT_KEY = 'daynight.geoPromptDismissed';
 
-const ZONES = timezoneCoords as unknown as Record<string, [number, number]>
+const ZONES = timezoneCoords as unknown as Record<string, [number, number]>;
 
 /**
  * Renamed zones, keyed by the retired name. The dataset uses current IANA
@@ -62,36 +75,38 @@ const ZONE_ALIASES: Record<string, string> = {
   'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
   'Asia/Istanbul': 'Europe/Istanbul',
   'US/Hawaii': 'Pacific/Honolulu',
-}
+};
 
 /** ~1 km. The dial cannot resolve finer, so nothing finer is kept. */
 export function roundCoord(value: number): number {
-  return Math.round(value * 100) / 100
+  return Math.round(value * 100) / 100;
 }
 
 export function deviceTimezone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 /** `UTC`, `UTC+9`, `UTC-5`, `UTC+5:30`. */
 export function utcOffsetLabel(timeZone: string, at: Date = new Date()): string {
-  const minutes = zoneOffsetMinutes(timeZone, at)
-  if (minutes === null) return timeZone
-  if (minutes === 0) return 'UTC'
+  const minutes = zoneOffsetMinutes(timeZone, at);
+  if (minutes === null) {
+    return timeZone;
+  }
+  if (minutes === 0) {
+    return 'UTC';
+  }
 
-  const sign = minutes < 0 ? '-' : '+'
-  const total = Math.abs(minutes)
-  const hours = Math.floor(total / 60)
-  const rest = total % 60
+  const sign = minutes < 0 ? '-' : '+';
+  const total = Math.abs(minutes);
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
 
-  return rest === 0
-    ? `UTC${sign}${hours}`
-    : `UTC${sign}${hours}:${String(rest).padStart(2, '0')}`
+  return rest === 0 ? `UTC${sign}${hours}` : `UTC${sign}${hours}:${String(rest).padStart(2, '0')}`;
 }
 
 export function placeFromTimezone(): Place {
-  const zone = deviceTimezone()
-  const direct = ZONES[zone] ?? ZONES[ZONE_ALIASES[zone] ?? '']
+  const zone = deviceTimezone();
+  const direct = ZONES[zone] ?? ZONES[ZONE_ALIASES[zone] ?? ''];
 
   if (direct) {
     return {
@@ -102,7 +117,7 @@ export function placeFromTimezone(): Place {
       // The device's own zone name, not the alias target: a `UTC` device gets
       // London's *coordinates*, but its dial must not follow London's DST.
       tz: zone,
-    }
+    };
   }
 
   // Unknown zone name: settle for any zone at the same current offset. Better
@@ -110,8 +125,8 @@ export function placeFromTimezone(): Place {
   // "first at this offset" skews low-latitude and the latitude can be badly
   // wrong. Tagged `offset`, not `timezone`, so the panel does not present a
   // borrowed latitude with the confidence of a real zone match.
-  const now = new Date()
-  const target = zoneOffsetMinutes(zone, now)
+  const now = new Date();
+  const target = zoneOffsetMinutes(zone, now);
   if (target !== null) {
     for (const [candidate, coords] of Object.entries(ZONES)) {
       if (zoneOffsetMinutes(candidate, now) === target) {
@@ -123,25 +138,33 @@ export function placeFromTimezone(): Place {
           // The zone answered an offset query, so it can drive the dial even
           // though its coordinates had to be borrowed.
           tz: zone,
-        }
+        };
       }
     }
   }
 
-  return { lat: 0, lon: 0, label: 'Unknown location', source: 'fallback' }
+  return { lat: 0, lon: 0, label: 'Unknown location', source: 'fallback' };
 }
 
 export function loadOverride(): Place | null {
   try {
-    const raw = localStorage.getItem(PLACE_KEY)
-    if (!raw) return null
+    const raw = localStorage.getItem(PLACE_KEY);
+    if (!raw) {
+      return null;
+    }
 
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return null
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
 
-    const { lat, lon, label, tz } = parsed as Partial<Place>
-    if (typeof lat !== 'number' || typeof lon !== 'number') return null
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+    const { lat, lon, label, tz } = parsed as Partial<Place>;
+    if (typeof lat !== 'number' || typeof lon !== 'number') {
+      return null;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return null;
+    }
 
     return {
       lat: roundCoord(lat),
@@ -149,9 +172,9 @@ export function loadOverride(): Place | null {
       label: typeof label === 'string' && label ? label : 'Saved location',
       source: 'manual',
       ...(typeof tz === 'string' && tz ? { tz } : {}),
-    }
+    };
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -162,12 +185,12 @@ export function saveOverride(place: Place): void {
     label: place.label,
     source: 'manual',
     ...(place.tz ? { tz: place.tz } : {}),
-  }
+  };
   try {
     // Safari private browsing (and a full storage quota) makes setItem throw
     // synchronously. This is called directly from UI handlers (Task 8), so a
     // storage failure must degrade to an in-memory-only session, not crash it.
-    localStorage.setItem(PLACE_KEY, JSON.stringify(stored))
+    localStorage.setItem(PLACE_KEY, JSON.stringify(stored));
   } catch {
     // ignored: the chosen place still lives in memory for this session
   }
@@ -175,7 +198,7 @@ export function saveOverride(place: Place): void {
 
 export function clearOverride(): void {
   try {
-    localStorage.removeItem(PLACE_KEY)
+    localStorage.removeItem(PLACE_KEY);
   } catch {
     // ignored: same storage-unavailable case as saveOverride
   }
@@ -183,16 +206,16 @@ export function clearOverride(): void {
 
 export function isPromptDismissed(): boolean {
   try {
-    return localStorage.getItem(PROMPT_KEY) === '1'
+    return localStorage.getItem(PROMPT_KEY) === '1';
   } catch {
     // Storage unreadable: behave as if the prompt was never dismissed.
-    return false
+    return false;
   }
 }
 
 export function dismissPrompt(): void {
   try {
-    localStorage.setItem(PROMPT_KEY, '1')
+    localStorage.setItem(PROMPT_KEY, '1');
   } catch {
     // ignored: same storage-unavailable case as saveOverride
   }
@@ -204,18 +227,22 @@ export function dismissPrompt(): void {
  * explanation modal.
  */
 export function resolveInitialPlace(): Place {
-  return loadOverride() ?? placeFromTimezone()
+  return loadOverride() ?? placeFromTimezone();
 }
 
 export async function geolocationPermission(): Promise<GeoPermission> {
-  if (!navigator.geolocation) return 'unsupported'
-  if (!navigator.permissions?.query) return 'prompt'
+  if (!navigator.geolocation) {
+    return 'unsupported';
+  }
+  if (!navigator.permissions?.query) {
+    return 'prompt';
+  }
 
   try {
-    const status = await navigator.permissions.query({ name: 'geolocation' })
-    return status.state
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    return status.state;
   } catch {
-    return 'prompt'
+    return 'prompt';
   }
 }
 
@@ -226,8 +253,8 @@ export async function geolocationPermission(): Promise<GeoPermission> {
 export function requestCoarsePosition(): Promise<Place> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by this browser'))
-      return
+      reject(new Error('Geolocation is not supported by this browser'));
+      return;
     }
 
     navigator.geolocation.getCurrentPosition(
@@ -243,6 +270,6 @@ export function requestCoarsePosition(): Promise<Place> {
         }),
       (error) => reject(new Error(error.message || 'Could not get your location')),
       { enableHighAccuracy: false, maximumAge: 900_000, timeout: 8_000 },
-    )
-  })
+    );
+  });
 }

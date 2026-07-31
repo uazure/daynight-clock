@@ -1,0 +1,10 @@
+# Everything is public and there is no server, so nothing is off limits.
+# This file exists to carry the Sitemap line, not to restrict anything —
+# absent, crawlers already assume Allow: /.
+#
+# Only honoured at an origin root, so this is about daynight-clock.azure.pp.ua;
+# a copy served from a subdirectory (which dist/ supports) is simply ignored.
+User-agent: *
+Allow: /
+
+Sitemap: https://daynight-clock.azure.pp.ua/sitemap.xml

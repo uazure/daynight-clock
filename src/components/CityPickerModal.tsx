@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import { loadCities, offsetsDiffer, searchCities, type City } from '../lib/cities'
-import { deviceTimezone, utcOffsetLabel } from '../lib/location'
-import { ModalSheet } from './ModalSheet'
+import { useEffect, useRef, useState } from 'react';
+import { type City, loadCities, offsetsDiffer, searchCities } from '../lib/cities';
+import { deviceTimezone, utcOffsetLabel } from '../lib/location';
+import { ModalSheet } from './ModalSheet';
 
 interface Props {
-  canLocate: boolean
-  onChooseCity: (city: City) => void
-  onUseDeviceLocation: () => void
-  onClose: () => void
+  canLocate: boolean;
+  onChooseCity: (city: City) => void;
+  onUseDeviceLocation: () => void;
+  onClose: () => void;
 }
 
 /**
@@ -15,31 +15,21 @@ interface Props {
  * it — expanding in the flex column stole height from the clock stage and
  * visibly shrank the dial on every open and keystroke.
  */
-export function CityPickerModal({
-  canLocate,
-  onChooseCity,
-  onUseDeviceLocation,
-  onClose,
-}: Props) {
-  const [cities, setCities] = useState<City[] | null>(null)
-  const [query, setQuery] = useState('')
-  const searchRef = useRef<HTMLInputElement>(null)
+export function CityPickerModal({ canLocate, onChooseCity, onUseDeviceLocation, onClose }: Props) {
+  const [cities, setCities] = useState<City[] | null>(null);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // The dataset is only fetched once the picker is actually opened.
   useEffect(() => {
-    void loadCities().then(setCities)
-  }, [])
+    void loadCities().then(setCities);
+  }, []);
 
-  const results = cities ? searchCities(cities, query) : []
-  const zone = deviceTimezone()
+  const results = cities ? searchCities(cities, query) : [];
+  const zone = deviceTimezone();
 
   return (
-    <ModalSheet
-      labelledBy="picker-title"
-      onClose={onClose}
-      initialFocusRef={searchRef}
-      dismissOnScrim
-    >
+    <ModalSheet labelledBy="picker-title" onClose={onClose} initialFocusRef={searchRef} dismissOnScrim>
       <h2 id="picker-title">Change location</h2>
 
       <div className="picker-body">
@@ -47,8 +37,8 @@ export function CityPickerModal({
           <button
             type="button"
             onClick={() => {
-              onUseDeviceLocation()
-              onClose()
+              onUseDeviceLocation();
+              onClose();
             }}
           >
             Use my location
@@ -74,14 +64,12 @@ export function CityPickerModal({
               <button
                 type="button"
                 onClick={() => {
-                  onChooseCity(city)
-                  onClose()
+                  onChooseCity(city);
+                  onClose();
                 }}
               >
                 {city.name}, {city.country}
-                {offsetsDiffer(city.tz, zone) && (
-                  <span className="muted"> — {utcOffsetLabel(city.tz)}</span>
-                )}
+                {offsetsDiffer(city.tz, zone) && <span className="muted"> — {utcOffsetLabel(city.tz)}</span>}
               </button>
             </li>
           ))}
@@ -94,5 +82,5 @@ export function CityPickerModal({
         </button>
       </div>
     </ModalSheet>
-  )
+  );
 }

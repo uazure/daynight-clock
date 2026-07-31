@@ -23,12 +23,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      # `biome ci` is the non-writing variant: it fails on anything `lint:fix`
+      # would have changed, formatting and import order included.
+      - run: npx biome ci .
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

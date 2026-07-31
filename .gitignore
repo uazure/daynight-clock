@@ -19,3 +19,6 @@ dist-ssr
 # Tooling
 .superpowers/
 .claude/
+
+# Process artifacts — see "Where the reasoning lives" in AGENTS.md
+docs/

@@ -1,6 +1,8 @@
-import { memo } from 'react'
-import { DIAL, DIAL_TYPE, MINUTE_LABEL_STEP } from '../lib/dial'
-import { angleForMinute, toCartesian } from '../lib/geometry'
+import { memo } from 'react';
+import { angleForMinute, toCartesian } from '../lib/geometry';
+import { VISUAL } from '../lib/visual';
+
+const { minuteLabels } = VISUAL;
 
 /**
  * The minute scale, on a band outside the shaded face — read like a bezel,
@@ -17,25 +19,26 @@ import { angleForMinute, toCartesian } from '../lib/geometry'
  * Zero-padded, so `00` never reads as the hour `0` directly opposite it.
  */
 export const MinuteLabels = memo(function MinuteLabels() {
-  const labels = []
+  const labels = [];
 
-  for (let minute = 0; minute < 60; minute += MINUTE_LABEL_STEP) {
-    const at = toCartesian(DIAL.minuteLabel, angleForMinute(minute))
+  for (let minute = 0; minute < 60; minute += minuteLabels.step) {
+    const at = toCartesian(minuteLabels.radius, angleForMinute(minute));
 
     labels.push(
       <text
         key={minute}
         x={at.x}
         y={at.y}
-        fill="var(--minute-ink)"
-        fontSize={DIAL_TYPE.minuteLabel}
+        fill={minuteLabels.fill}
+        fontSize={minuteLabels.size}
+        fontWeight={minuteLabels.weight}
         textAnchor="middle"
         dominantBaseline="central"
       >
         {String(minute).padStart(2, '0')}
       </text>,
-    )
+    );
   }
 
-  return <g>{labels}</g>
-})
+  return <g>{labels}</g>;
+});

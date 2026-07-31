@@ -1,7 +1,9 @@
 /*
  * Chrome colours only — the dial's own colours (ring ramp, tick/label ink,
- * hands) are semantic day-vs-night values decided in src/lib/lightness.ts
- * and Hands.tsx, and deliberately do not change with the theme.
+ * hands) are semantic day-vs-night values decided in src/lib/visual.ts, and
+ * deliberately do not change with the theme. The two dial tokens below are the
+ * exceptions, and both paint on or outside the face's edge where the backdrop
+ * really is the page; `visual.test.ts` pins that they are the only two.
  *
  * Dark is the base; the light palette appears twice below because plain CSS
  * cannot join a media query and an attribute selector into one rule. Keep
@@ -16,6 +18,7 @@
   --scrim: hsl(220 20% 4% / 0.7);
   --sheet-bg: hsl(220 14% 14%);
   --sheet-shadow: hsl(220 30% 2% / 0.5);
+  --hint-bg: hsl(220 14% 14% / 0.92);
   --border: hsl(220 12% 40%);
   --btn-primary-bg: hsl(220 12% 92%);
   --btn-primary-text: hsl(220 14% 10%);
@@ -33,13 +36,14 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
+  :root:not([data-theme="dark"]) {
     color-scheme: light;
     --bg: hsl(220 12% 96%);
     --text: hsl(220 14% 10%);
     --scrim: hsl(220 20% 10% / 0.35);
     --sheet-bg: hsl(220 14% 99%);
     --sheet-shadow: hsl(220 30% 20% / 0.25);
+    --hint-bg: hsl(220 14% 99% / 0.92);
     --border: hsl(220 12% 62%);
     --btn-primary-bg: hsl(220 14% 15%);
     --btn-primary-text: hsl(220 12% 96%);
@@ -50,13 +54,14 @@
   }
 }
 
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   color-scheme: light;
   --bg: hsl(220 12% 96%);
   --text: hsl(220 14% 10%);
   --scrim: hsl(220 20% 10% / 0.35);
   --sheet-bg: hsl(220 14% 99%);
   --sheet-shadow: hsl(220 30% 20% / 0.25);
+  --hint-bg: hsl(220 14% 99% / 0.92);
   --border: hsl(220 12% 62%);
   --btn-primary-bg: hsl(220 14% 15%);
   --btn-primary-text: hsl(220 12% 96%);
@@ -66,14 +71,23 @@
   --minute-ink: hsl(220 12% 45%);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-html, body, #root { height: 100%; margin: 0; }
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
 
 body {
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.4 system-ui, sans-serif;
+  font:
+    16px / 1.4 system-ui,
+    sans-serif;
 }
 
 .app {
@@ -106,6 +120,9 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  /* The positioning context for `.hint`, which floats over the dial's lower
+     rim rather than joining the panel — see the note on `.hint`. */
+  position: relative;
 }
 
 .clock {
@@ -121,10 +138,83 @@ body {
   opacity: 0.7;
 }
 
+/*
+ * The panel's payload, and the reason the hint below can stay so terse: a
+ * sunrise time you have just been told is a guess makes its own argument.
+ * Fully opaque, unlike the provenance around it — this is what the reader came
+ * for. Unconditional, so the panel's height never moves (see LocationPanel).
+ */
+.sun-times {
+  margin: 0.3rem 0 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .tz-note {
   margin: 0.3rem 0 0;
   text-align: center;
   font-size: 0.8rem;
+}
+
+/*
+ * The first-run nudge. Floats over the dial's lower rim, absolutely positioned
+ * against `.clock-stage`, because the dial is sized from whatever height the
+ * panel leaves over: putting this in the panel would resize the clock once
+ * when the permission state resolves and again when the note is dismissed.
+ *
+ * Translucent over a blur so the shading it is sitting on stays readable
+ * through it — the note is about that shading being in the wrong place, so
+ * hiding it entirely would be perverse.
+ */
+.hint {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(24rem, 100%);
+  /* Asymmetric on the right: the dismiss control sits in that gutter. */
+  padding: 0.7rem 2.1rem 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--hint-bg);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0.5rem 1.5rem var(--sheet-shadow);
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.hint-lead {
+  margin: 0;
+  opacity: 0.75;
+}
+
+.hint-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0.55rem 0 0;
+}
+
+.hint-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.hint-dismiss {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  padding: 0.1rem 0.3rem;
+  border: none;
+  font-size: 0.8rem;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.hint-dismiss:hover {
+  opacity: 1;
 }
 
 .scrim {
@@ -147,9 +237,19 @@ body {
   box-shadow: 0 1rem 3rem var(--sheet-shadow);
 }
 
-.sheet h2 { margin: 0 0 0.75rem; font-size: 1.15rem; }
-.sheet p { margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.85; }
-.sheet-note { font-size: 0.8rem !important; opacity: 0.6 !important; }
+.sheet h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+.sheet p {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+.sheet-note {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
 
 .sheet-actions {
   display: flex;
@@ -168,8 +268,16 @@ button {
   cursor: pointer;
 }
 
-button.primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: transparent; }
-button.link { padding: 0; border: none; text-decoration: underline; }
+button.primary {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: transparent;
+}
+button.link {
+  padding: 0;
+  border: none;
+  text-decoration: underline;
+}
 
 /*
  * Never grows or shrinks in the flex column — it always takes its natural
@@ -177,9 +285,21 @@ button.link { padding: 0; border: none; text-decoration: underline; }
  * left. Everything that could change height after mount (the city chooser)
  * lives in the picker modal instead, so the dial's size never moves.
  */
-.panel { flex: 0 0 auto; font-size: 0.85rem; text-align: center; }
-.picker-body { display: grid; gap: 0.75rem; justify-items: center; margin-top: 0.75rem; }
-.field { display: grid; gap: 0.25rem; }
+.panel {
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.picker-body {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: center;
+  margin-top: 0.75rem;
+}
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
 
 .field input {
   padding: 0.4rem 0.6rem;
@@ -217,7 +337,13 @@ button.link { padding: 0; border: none; text-decoration: underline; }
   text-overflow: ellipsis;
 }
 
-.results button:hover { background: var(--hover); }
+.results button:hover {
+  background: var(--hover);
+}
 
-.muted { opacity: 0.6; }
-.error { color: var(--error); }
+.muted {
+  opacity: 0.64;
+}
+.error {
+  color: var(--error);
+}
