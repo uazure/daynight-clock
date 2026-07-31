@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One route, so this is a formality; it earns its keep only as somewhere for
+     robots.txt's Sitemap line to point, and as the place lastmod is declared. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://daynight-clock.azure.pp.ua/</loc>
+    <lastmod>2026-07-31</lastmod>
+  </url>
+</urlset>

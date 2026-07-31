@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react';
 
 /**
  * The current instant, refreshed on an interval while the tab is visible.
@@ -17,40 +17,40 @@ import { useEffect, useState } from 'react'
  * unfocused is still on screen, and a clock you can see has to be right.
  */
 export function useNow(intervalMs = 2_000): Date {
-  const [now, setNow] = useState(() => new Date())
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    let id: ReturnType<typeof setInterval> | undefined
+    let id: ReturnType<typeof setInterval> | undefined;
 
     const stop = () => {
       if (id !== undefined) {
-        clearInterval(id)
-        id = undefined
+        clearInterval(id);
+        id = undefined;
       }
-    }
+    };
 
     const start = () => {
-      stop()
-      id = setInterval(() => setNow(new Date()), intervalMs)
-    }
+      stop();
+      id = setInterval(() => setNow(new Date()), intervalMs);
+    };
 
     const sync = () => {
       if (document.hidden) {
-        stop()
-        return
+        stop();
+        return;
       }
-      setNow(new Date())
-      start()
-    }
+      setNow(new Date());
+      start();
+    };
 
-    sync()
-    document.addEventListener('visibilitychange', sync)
+    sync();
+    document.addEventListener('visibilitychange', sync);
 
     return () => {
-      stop()
-      document.removeEventListener('visibilitychange', sync)
-    }
-  }, [intervalMs])
+      stop();
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, [intervalMs]);
 
-  return now
+  return now;
 }

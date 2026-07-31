@@ -6,23 +6,23 @@
  */
 
 export interface WallClock {
-  year: number
+  year: number;
   /** 1–12, unlike `Date#getMonth`. */
-  month: number
-  day: number
-  hour: number
-  minute: number
-  second: number
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
 }
 
 /**
  * Formatters are expensive to construct and the app asks about the same one
  * or two zones thousands of times per day profile.
  */
-const FORMATTERS = new Map<string, Intl.DateTimeFormat>()
+const FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 
 function formatterFor(timeZone: string): Intl.DateTimeFormat {
-  let formatter = FORMATTERS.get(timeZone)
+  let formatter = FORMATTERS.get(timeZone);
   if (!formatter) {
     formatter = new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -34,10 +34,10 @@ function formatterFor(timeZone: string): Intl.DateTimeFormat {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-    })
-    FORMATTERS.set(timeZone, formatter)
+    });
+    FORMATTERS.set(timeZone, formatter);
   }
-  return formatter
+  return formatter;
 }
 
 /**
@@ -55,28 +55,34 @@ export function zoneOffsetMinutes(timeZone: string, at: Date): number | null {
       timeZoneName: 'longOffset',
     })
       .formatToParts(at)
-      .find((part) => part.type === 'timeZoneName')?.value
+      .find((part) => part.type === 'timeZoneName')?.value;
 
-    if (!name) return null
-    if (name === 'GMT') return 0
+    if (!name) {
+      return null;
+    }
+    if (name === 'GMT') {
+      return 0;
+    }
 
-    const match = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(name)
-    if (!match) return null
+    const match = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(name);
+    if (!match) {
+      return null;
+    }
 
-    const sign = match[1] === '-' ? -1 : 1
-    return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0))
+    const sign = match[1] === '-' ? -1 : 1;
+    return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0));
   } catch {
-    return null
+    return null;
   }
 }
 
 /** The wall clock an observer in `timeZone` reads at `instant`. */
 export function wallClockInZone(instant: Date, timeZone: string): WallClock {
-  const parts = formatterFor(timeZone).formatToParts(instant)
+  const parts = formatterFor(timeZone).formatToParts(instant);
   const read = (type: Intl.DateTimeFormatPartTypes): number => {
-    const value = parts.find((part) => part.type === type)?.value
-    return value === undefined ? Number.NaN : Number(value)
-  }
+    const value = parts.find((part) => part.type === type)?.value;
+    return value === undefined ? Number.NaN : Number(value);
+  };
 
   return {
     year: read('year'),
@@ -85,15 +91,15 @@ export function wallClockInZone(instant: Date, timeZone: string): WallClock {
     hour: read('hour'),
     minute: read('minute'),
     second: read('second'),
-  }
+  };
 }
 
 /** `YYYY-MM-DD` as read in `timeZone` — the memo key for a day's profile. */
 export function dateKeyInZone(instant: Date, timeZone: string): string {
-  const wall = wallClockInZone(instant, timeZone)
-  const month = String(wall.month).padStart(2, '0')
-  const day = String(wall.day).padStart(2, '0')
-  return `${wall.year}-${month}-${day}`
+  const wall = wallClockInZone(instant, timeZone);
+  const month = String(wall.month).padStart(2, '0');
+  const day = String(wall.day).padStart(2, '0');
+  return `${wall.year}-${month}-${day}`;
 }
 
 /**
@@ -103,10 +109,10 @@ export function dateKeyInZone(instant: Date, timeZone: string): string {
  * matters to `sampleDay`'s 1440 inversions per day profile.
  */
 function fastOffsetMinutes(timeZone: string, atMs: number): number {
-  const wall = wallClockInZone(new Date(atMs), timeZone)
-  const asUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second)
+  const wall = wallClockInZone(new Date(atMs), timeZone);
+  const asUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second);
   // Offsets are whole minutes; rounding absorbs the instant's sub-second part.
-  return Math.round((asUtc - atMs) / 60_000)
+  return Math.round((asUtc - atMs) / 60_000);
 }
 
 /**
@@ -122,33 +128,39 @@ function fastOffsetMinutes(timeZone: string, atMs: number): number {
  * occurred. For a fall-back overlap (a wall time that happens twice) it
  * deterministically picks one of the two instants.
  */
-export function instantForZoneWallClock(
-  dateKey: string,
-  hour: number,
-  minute: number,
-  timeZone: string,
-): Date {
-  const [year, month, day] = dateKey.split('-').map(Number)
-  const guess = Date.UTC(year, month - 1, day, hour, minute)
+export function instantForZoneWallClock(dateKey: string, hour: number, minute: number, timeZone: string): Date {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
 
   try {
-    const first = fastOffsetMinutes(timeZone, guess)
-    const second = fastOffsetMinutes(timeZone, guess - first * 60_000)
-    return new Date(guess - second * 60_000)
+    const first = fastOffsetMinutes(timeZone, guess);
+    const second = fastOffsetMinutes(timeZone, guess - first * 60_000);
+    return new Date(guess - second * 60_000);
   } catch {
     // Unknown zone: read the guess as UTC rather than throw mid-render.
-    return new Date(guess)
+    return new Date(guess);
   }
+}
+
+/**
+ * Minutes after midnight → `HH:MM` on a 24-hour clock, to match the dial the
+ * reader is looking at. Rounding 23:59:40 up produces minute 1440, which is
+ * the next day's `00:00`, so the result wraps rather than reading `24:00`.
+ */
+export function formatMinutesOfDay(minutes: number): string {
+  const total = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const hour = String(Math.floor(total / 60)).padStart(2, '0');
+  return `${hour}:${String(total % 60).padStart(2, '0')}`;
 }
 
 /** Fractional hours since `timeZone`'s midnight, for placing the hands. */
 export function hoursSinceMidnightInZone(now: Date, timeZone: string): number {
-  const wall = wallClockInZone(now, timeZone)
+  const wall = wallClockInZone(now, timeZone);
   return (
     wall.hour +
     wall.minute / 60 +
     wall.second / 3600 +
     // Milliseconds never differ between zones, so the instant's own are fine.
     now.getMilliseconds() / 3_600_000
-  )
+  );
 }

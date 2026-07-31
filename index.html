@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Day/Night Clock</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- Safari ignores the manifest's icons for Add to Home Screen and looks
+         only for this; without it iOS uses a screenshot of the page. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-180x180.png" />
     <!-- Matched to the two --bg values in styles.css; useTheme.ts rewrites
          both to one colour while an explicit theme is pinned. -->
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171a1f" />
@@ -12,14 +15,41 @@
     <!-- Apply a stored explicit theme before the stylesheet paints, so a
          pinned light theme never flashes dark on load (or vice versa). -->
     <script>
+      var storedTheme;
       try {
-        var storedTheme = localStorage.getItem('daynight.theme')
+        storedTheme = localStorage.getItem('daynight.theme')
         if (storedTheme === 'light' || storedTheme === 'dark') {
           document.documentElement.dataset.theme = storedTheme
         }
-      } catch (e) {}
+      } catch (_e) {}
     </script>
     <meta name="description" content="A 24-hour analog clock whose dial is shaded by daylight, twilight and night at your location." />
+    <link rel="canonical" href="https://daynight-clock.azure.pp.ua/" />
+
+    <!-- Absolute URLs are not a style choice here: scrapers fetch these without
+         a document base, so the relative paths the rest of this file uses would
+         not resolve. Keep the description in step with the meta above and with
+         `manifest.description` in vite.config.ts. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Day/Night Clock" />
+    <meta property="og:title" content="Day/Night Clock" />
+    <meta property="og:description" content="A 24-hour analog clock whose dial is shaded by daylight, twilight and night at your location." />
+    <meta property="og:url" content="https://daynight-clock.azure.pp.ua/" />
+    <!-- The manifest's 512 icon, reused rather than a purpose-built card. It is
+         RGBA and only the disc is opaque, so the corners take whatever colour
+         the platform composites onto — fine on light, near-invisible on dark.
+         maskable-icon-512x512.png is the opaque alternative, at the cost of the
+         0.3 launcher safe zone shrinking the dial inside the frame. -->
+    <meta property="og:image" content="https://daynight-clock.azure.pp.ua/pwa-512x512.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="A 24-hour clock dial, its upper half light for day and lower half dark for night." />
+    <!-- Square art, so `summary` — `summary_large_image` would crop it to 2:1.
+         Twitter falls back to the og: tags for title, description and image;
+         only the card type and the image's alt text have no og equivalent. -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image:alt" content="A 24-hour clock dial, its upper half light for day and lower half dark for night." />
   </head>
   <body>
     <div id="root"></div>

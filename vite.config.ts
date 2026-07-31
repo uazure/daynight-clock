@@ -1,7 +1,8 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: './',
@@ -9,20 +10,35 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      // The Apple icon is reachable only from a `<link>` in index.html, so
+      // nothing else would pull it into the precache. The manifest's own PNGs
+      // need no entry here — they are matched by workbox's default glob.
+      includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
         name: 'Day/Night Clock',
         short_name: 'Day/Night',
-        description:
-          'A 24-hour analog clock whose dial is shaded by daylight, twilight and night at your location.',
+        description: 'A 24-hour analog clock whose dial is shaded by daylight, twilight and night at your location.',
         theme_color: '#171a1f',
         background_color: '#171a1f',
         display: 'standalone',
-        // The same file the tab icon uses — one SVG scales to every size a
-        // manifest icon is asked for, so a second identical copy bought
-        // nothing.
+        // Rasters, not the SVG the tab icon uses: Chrome's installability
+        // check requires a 192 and a 512 raster, and an SVG at `sizes: "any"`
+        // does not count — declaring only the SVG is why Chrome on Android
+        // offered no install option at all. Generated from that same SVG by
+        // `pwa-assets.config.js` and committed; regenerate, don't hand-edit.
+        //
+        // The maskable copy is a separate entry rather than a second `purpose`
+        // on the 512: it is padded to the launcher safe zone, so it is a
+        // different image, and one file cannot honestly claim both purposes.
         icons: [
-          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: 'maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
         ],
       },
     }),
@@ -36,4 +52,4 @@ export default defineConfig({
     // actually have a transition to catch.
     env: { TZ: 'Europe/Prague' },
   },
-})
+});

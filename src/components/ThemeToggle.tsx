@@ -1,11 +1,11 @@
-import { useTheme } from '../hooks/useTheme'
-import type { ThemePreference } from '../lib/theme'
+import { useTheme } from '../hooks/useTheme';
+import type { ThemePreference } from '../lib/theme';
 
 const NEXT: Record<ThemePreference, ThemePreference> = {
   auto: 'light',
   light: 'dark',
   dark: 'auto',
-}
+};
 
 /**
  * A link-styled three-way cycle, sitting on the panel's place line. Cycling
@@ -13,7 +13,7 @@ const NEXT: Record<ThemePreference, ThemePreference> = {
  * strip of chrome the app has.
  */
 export function ThemeToggle() {
-  const [preference, setPreference] = useTheme()
+  const [preference, setPreference] = useTheme();
 
   return (
     <button
@@ -24,5 +24,5 @@ export function ThemeToggle() {
     >
       theme: {preference}
     </button>
-  )
+  );
 }
