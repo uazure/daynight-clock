@@ -1,8 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 200 200" width="512" height="512">
-  <rect x="-100" y="-100" width="200" height="200" fill="hsl(220 12% 10%)"/>
-  <path d="M 0 0 L 0 -92 A 92 92 0 0 1 0 92 Z" fill="hsl(220 12% 92%)"/>
-  <path d="M 0 0 L 0 92 A 92 92 0 0 1 0 -92 Z" fill="hsl(220 12% 16%)"/>
-  <circle r="92" fill="none" stroke="hsl(220 12% 55%)" stroke-width="3"/>
-  <line x1="0" y1="6" x2="45" y2="-40" stroke="hsl(220 14% 10%)" stroke-width="8" stroke-linecap="round"/>
-  <circle r="7" fill="hsl(220 14% 10%)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 200 200" width="512" height="512" role="img" aria-label="24-hour day and night clock">
+  <!--
+    A miniature of the real dial: a 24-hour face with noon at the top and
+    midnight at the bottom, shaded by the sun rather than split in half.
+
+    The gradient is the app's own LIGHTNESS_ANCHORS ramp (src/lib/lightness.ts)
+    evaluated for an equinox at 45°N, which is the profile that reads most
+    plainly as "day above, night below". At equinox the dial is symmetric about
+    the vertical, so a vertical linear gradient reproduces the rim colours
+    exactly while staying a few hundred bytes — an angular gradient would need
+    a hundred-odd wedges to avoid banding at icon sizes.
+
+    Each stop sits at the height where its anchor's altitude falls on the rim.
+    For a point at dial angle t from noon, sin(altitude) = cos(latitude)·cos(t)
+    and the rim height is y = -92·cos(t), so offset = (1 - sin(alt)/cos(45°))/2:
+
+      0.426  +6°      full daylight   L 1.00 -> 96.0%
+      0.510  -0.833°  sunrise/sunset  L 0.88 -> 85.1%
+      0.574  -6°      civil           L 0.58 -> 57.8%
+      0.647  -12°     nautical        L 0.32 -> 34.1%
+      0.719  -18°     astronomical    L 0.14 -> 17.7%
+      0.854  -30°     night floor     L 0.06 -> 10.5%
+
+    Colours are hex rather than the app's `hsl(220 12% x%)` because this file is
+    also the PWA manifest icon (vite.config.ts) and gets rasterised by OS icon
+    pipelines whose SVG support predates space-separated hsl().
+
+    No background rect: the disc has to sit on whatever colour the tab bar or
+    launcher happens to be, in either theme.
+  -->
+  <defs>
+    <linearGradient id="daynight" gradientUnits="userSpaceOnUse" x1="0" y1="-92" x2="0" y2="92">
+      <stop offset="0" stop-color="#f4f4f6"/>
+      <stop offset="0.426" stop-color="#f4f4f6"/>
+      <stop offset="0.510" stop-color="#d4d8de"/>
+      <stop offset="0.574" stop-color="#868fa0"/>
+      <stop offset="0.647" stop-color="#4d5361"/>
+      <stop offset="0.719" stop-color="#282b33"/>
+      <stop offset="0.854" stop-color="#181a1e"/>
+      <stop offset="1" stop-color="#181a1e"/>
+    </linearGradient>
+  </defs>
+
+  <circle r="92" fill="url(#daynight)"/>
+  <!-- The dial's silhouette, in the same mid-tone token the app uses, so it
+       reads against both ends of the ramp and against the page behind it. -->
+  <circle r="92" fill="none" stroke="#737f96" stroke-width="4"/>
+
+  <!--
+    Hands at 14:50. Both fall in the daylight half, so the dark cores read
+    without having to fight the night sector, and they splay wide enough to
+    stay separable at 16px. Strokes are far heavier than the app's hairlines
+    for the same reason — a 1.4-unit hand is a third of a pixel at tab size.
+  -->
+  <g stroke-linecap="round" stroke="#f4f4f6" stroke-opacity="0.5">
+    <line x1="5.196" y1="3" x2="-64.086" y2="-37" stroke-width="8.1"/>
+    <line x1="-4.054" y1="4.424" x2="39.184" y2="-42.762" stroke-width="12.6"/>
+  </g>
+  <g stroke-linecap="round" stroke="#16181d">
+    <line x1="5.196" y1="3" x2="-64.086" y2="-37" stroke-width="4.5"/>
+    <line x1="-4.054" y1="4.424" x2="39.184" y2="-42.762" stroke-width="9"/>
+  </g>
+  <circle r="9" fill="#16181d" stroke="#f4f4f6" stroke-opacity="0.5" stroke-width="2.5"/>
 </svg>
