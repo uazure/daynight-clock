@@ -9,8 +9,9 @@ lives" below.
 
 A 24-hour analog clock. One turn of the hour hand is one day, noon at the top and midnight
 at the bottom, and the dial face is shaded by the sun's real altitude at the selected
-place — daylight, the three twilight bands, night. Both the shading and the hands run on
-that place's own IANA time zone, so picking Tokyo from Prague shows Tokyo's clock.
+place — daylight above +6°, night below -6°, an eased transition between. Both the shading
+and the hands run on that place's own IANA time zone, so picking Tokyo from Prague shows
+Tokyo's clock.
 
 Non-goals: no server, no accounts, no analytics, no network calls at runtime, no precise
 location. Coordinates never leave the device (rounded to ~1 km) and nothing is persisted
@@ -33,6 +34,10 @@ the build itself has no OS dependencies, though development here happens on Wind
   altitude once per minute of the day (1440 samples, [suncalc](https://github.com/mourner/suncalc))
   and mapping each to a lightness, instead of computing sunrise/sunset and filling wedges.
   Polar day and polar night then need no special case anywhere.
+- **The shading window is +6°…-6°, tuned for a city, not for the twilight bands.** Below
+  about -6° a city street is lit by streetlights and stops getting darker, so the nautical
+  and astronomical bands carry no information here. The full argument, with the numbers the
+  old twilight-anchored ramp got wrong, is above `FULL_DARK_DEG` in `src/lib/lightness.ts`.
 - **Zone arithmetic through `Intl` only**, all of it in `src/lib/time.ts`. No date library.
 - **Pure `src/lib/`, thin React.** Logic lives in framework-free modules with tests;
   components are renderers over them.
@@ -145,6 +150,13 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    its check, and declaring only the SVG is why installing was impossible on Android for a
    while. iOS needs the separate `apple-touch-icon` link in `index.html` or it uses a
    screenshot of the page as the icon.
+9. **`suncalc`'s `getPosition().altitude` is *apparent* altitude — refraction is already
+   in it.** So the sunrise threshold is `HORIZON_DEG = -0.349°`, not the geometric -0.833°
+   every table quotes. Using -0.833° subtracts refraction twice and fired the crossing a
+   flat 3 min early at mid latitudes, 4.4 min at Reykjavík, every day of the year. It
+   survived because `sun.test.ts` allowed 10 minutes against suncalc's own `getTimes` and
+   blamed the gap on "different solar models" — there is no second model, both sides come
+   from `getPosition`. The tolerances are 1 min and 0.1 min now; don't loosen them.
 
 ## Testing conventions
 

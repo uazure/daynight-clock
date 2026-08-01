@@ -15,6 +15,31 @@ import { instantForZoneWallClock, wallClockInZone } from './time';
  */
 const sampleAt = (wallHour: number) => (wallHour * 60) / MINUTES_PER_SAMPLE;
 
+describe('HORIZON_DEG', () => {
+  it('is the apparent altitude suncalc puts its own sunrise and sunset at', () => {
+    // The whole point of the constant, and the one thing worth pinning about
+    // it: `getPosition` reports *apparent* (refraction-corrected) altitude, so
+    // the threshold to compare it against is not the familiar geometric
+    // -0.833°. Read off suncalc rather than recomputed here — the constant's
+    // doc comment derives it from Meeus 16.4, and this is the check that the
+    // derivation matches what suncalc actually does.
+    //
+    // Latitude-independent, so three widely separated sites prove it is a
+    // property of the model and not a mid-latitude coincidence.
+    for (const [lat, lon] of [
+      [50.09, 14.42],
+      [1.35, 103.82],
+      [64.13, -21.9],
+    ] as const) {
+      const times = getTimes(new Date(Date.UTC(2026, 2, 20, 12)), lat, lon);
+      for (const event of [times.sunrise, times.sunset]) {
+        expect(event).not.toBeNull();
+        expect(getPosition(event!, lat, lon).altitude).toBeCloseTo(HORIZON_DEG, 3);
+      }
+    }
+  });
+});
+
 describe('sampleDay', () => {
   it('covers the day at the declared resolution', () => {
     const profile = sampleDay('2026-06-21', 50.45, 30.52, 'Europe/Prague');
@@ -134,12 +159,18 @@ describe('sampleDay', () => {
  */
 describe('sampleDay composed with sampleIndexForHour', () => {
   /**
-   * The sampled crossing and suncalc's own `getTimes` disagree by a couple of
-   * minutes on every day, transition or not — they use different solar models.
-   * Wide enough to absorb that, far narrower than the hour this test exists to
-   * catch.
+   * One minute, which is the sampling resolution — `dialCrossing` reads a whole
+   * sample index rather than interpolating, so it can only ever be right to the
+   * minute.
+   *
+   * This was 10 min, on the belief that the sampled crossing and suncalc's own
+   * `getTimes` "use different solar models" and must differ by a couple of
+   * minutes. They do not: both come from the same `getPosition`, and the
+   * disagreement was `HORIZON_DEG` double-counting refraction — a flat 3 min at
+   * these latitudes, 4.4 min at Reykjavík. The loose tolerance is what let that
+   * sit here undetected, so it is deliberately tight now.
    */
-  const TOLERANCE_MIN = 10;
+  const TOLERANCE_MIN = 1;
 
   interface Site {
     lat: number;
@@ -213,19 +244,24 @@ describe('sampleDay composed with sampleIndexForHour', () => {
 
 describe('sunEvents', () => {
   /**
-   * Same allowance, and for the same reason, as the composition suite above:
-   * the crossing read off sampled `getPosition` altitudes and suncalc's own
-   * `getTimes` come from different solar models and differ by a couple of
-   * minutes on any day. Wide enough to absorb that, far narrower than the
-   * hour a zone-arithmetic bug would introduce.
+   * Tighter than the composition suite's minute, because `sunEvents`
+   * interpolates between the straddling samples instead of taking one of them:
+   * agreement with `getTimes` measured under 0.01 min at every site and season
+   * tried. See the note on `TOLERANCE_MIN` above for what the old 10-minute
+   * allowance was hiding.
    */
-  const TOLERANCE_MIN = 10;
+  const TOLERANCE_MIN = 0.1;
 
   const PRAGUE = { lat: 50.09, lon: 14.42, tz: 'Europe/Prague' };
   /** Svalbard — far enough north for both polar day and polar night. */
   const LONGYEARBYEN = { lat: 78.22, lon: 15.65, tz: 'Europe/Prague' };
 
-  /** Minute of the zone day of suncalc's own event for that day. */
+  /**
+   * Minute of the zone day of suncalc's own event for that day, **fractional**.
+   * Seconds are carried rather than truncated: `sunEvents` interpolates to a
+   * fraction of a minute, so dropping them would leave up to a minute of
+   * comparison error and force a tolerance loose enough to hide a real one.
+   */
   function trueMinute(dateKey: string, site: typeof PRAGUE, direction: 'sunrise' | 'sunset'): number {
     const times = getTimes(instantForZoneWallClock(dateKey, 12, 0, site.tz), site.lat, site.lon);
     const event = times[direction];
@@ -233,7 +269,7 @@ describe('sunEvents', () => {
       throw new Error(`suncalc reports no ${direction} for this day`);
     }
     const wall = wallClockInZone(event, site.tz);
-    return wall.hour * 60 + wall.minute;
+    return wall.hour * 60 + wall.minute + wall.second / 60;
   }
 
   it('finds both crossings on an ordinary day', () => {

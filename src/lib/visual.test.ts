@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { angleForHour, angleForMinute } from './geometry';
-import { LIGHTNESS_ANCHORS } from './lightness';
+import { altitudeToLightness, FULL_DARK_DEG, FULL_LIGHT_DEG, HORIZON_DEG, NIGHT_LIGHTNESS } from './lightness';
 import { MINUTES_PER_SAMPLE, SAMPLES_PER_DAY } from './sun';
 import { VISUAL } from './visual';
 
@@ -216,20 +216,42 @@ describe('the dial palette', () => {
     expect(light).toBeGreaterThan(palette.band.max - 15);
   });
 
-  it("flips both inks inside the ramp's twilight span", () => {
-    // The first and last anchors are the ramp's two plateaus — the deep-night
-    // floor and full daylight — and everything between them is transition. A
-    // flip has to land in that transition: it exists to serve the mid-tones,
-    // where contrast against the face is weakest. Put it outside and the ink is
-    // effectively single-toned across the whole lit or whole dark part of the
-    // day, with 0.99 (light-on-light nearly all the way round) being the failure
-    // this catches.
-    const transition = LIGHTNESS_ANCHORS.slice(1, -1).map(([, lightness]) => lightness);
+  it("flips both inks inside the ramp's transition, not on a plateau", () => {
+    // The ramp is flat at `NIGHT_LIGHTNESS` and below, and flat at 1 above
+    // `FULL_LIGHT_DEG`; everything between is transition. A flip has to land in
+    // that transition: it exists to serve the mid-tones, where contrast against
+    // the face is weakest. Put it outside and the ink is effectively
+    // single-toned across the whole lit or whole dark part of the day, with
+    // 0.99 (light-on-light nearly all the way round) being the failure this
+    // catches.
     for (const flipAt of [ticks.ink.flipAt, hourLabels.flipAt]) {
-      expect(flipAt).toBeGreaterThan(Math.min(...transition));
-      expect(flipAt).toBeLessThan(Math.max(...transition));
+      expect(flipAt).toBeGreaterThan(NIGHT_LIGHTNESS);
+      expect(flipAt).toBeLessThan(1);
     }
     expect(ticks.ink.dark).not.toBe(ticks.ink.light);
+  });
+
+  it('puts both ink flips within minutes of sunrise and sunset', () => {
+    // Stronger than "inside the transition", and the reason the narrow ramp is
+    // worth having: the altitude at which each ink flips should be the horizon,
+    // so a numeral changes tone as the sun crosses it rather than somewhere
+    // arbitrary in dusk. Solved by bisection on the real ramp so this follows a
+    // retune of either module instead of restating its arithmetic.
+    for (const flipAt of [ticks.ink.flipAt, hourLabels.flipAt]) {
+      let lo = FULL_DARK_DEG;
+      let hi = FULL_LIGHT_DEG;
+      for (let i = 0; i < 60; i += 1) {
+        const mid = (lo + hi) / 2;
+        if (altitudeToLightness(mid) < flipAt) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      // Within a quarter degree of the horizon — about a minute of clock time
+      // at mid latitudes, so under one dial slice.
+      expect(Math.abs((lo + hi) / 2 - HORIZON_DEG)).toBeLessThan(0.25);
+    }
   });
 
   it('overlaps ring slices enough to hide seams and little enough to stay honest', () => {

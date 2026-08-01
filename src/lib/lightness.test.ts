@@ -1,26 +1,64 @@
 import { describe, expect, it } from 'vitest';
-import { altitudeToLightness, contrastInk, LIGHTNESS_ANCHORS, labelInk, lightnessToFill } from './lightness';
+import {
+  altitudeToLightness,
+  contrastInk,
+  FULL_DARK_DEG,
+  FULL_LIGHT_DEG,
+  HORIZON_DEG,
+  labelInk,
+  lightnessToFill,
+  NIGHT_FLOOR,
+  NIGHT_FLOOR_DEG,
+  NIGHT_LIGHTNESS,
+} from './lightness';
 import { VISUAL } from './visual';
 
 describe('altitudeToLightness', () => {
-  it('returns exactly the anchor value at each anchor altitude', () => {
-    for (const [altitude, lightness] of LIGHTNESS_ANCHORS) {
-      expect(altitudeToLightness(altitude)).toBeCloseTo(lightness, 9);
-    }
+  it('hits full daylight at FULL_LIGHT_DEG and stays there', () => {
+    expect(altitudeToLightness(FULL_LIGHT_DEG)).toBe(1);
+    expect(altitudeToLightness(FULL_LIGHT_DEG + 0.1)).toBe(1);
+    expect(altitudeToLightness(30)).toBe(1);
+    expect(altitudeToLightness(90)).toBe(1);
   });
 
-  it('clamps above the brightest and below the darkest anchor', () => {
-    const [darkestAlt, darkest] = LIGHTNESS_ANCHORS[0];
-    const [brightestAlt, brightest] = LIGHTNESS_ANCHORS[LIGHTNESS_ANCHORS.length - 1];
-
-    expect(altitudeToLightness(darkestAlt - 40)).toBeCloseTo(darkest, 9);
-    expect(altitudeToLightness(brightestAlt + 40)).toBeCloseTo(brightest, 9);
-    expect(altitudeToLightness(90)).toBeCloseTo(brightest, 9);
+  it('hits the night plateau at FULL_DARK_DEG and the floor below NIGHT_FLOOR_DEG', () => {
+    expect(altitudeToLightness(FULL_DARK_DEG)).toBeCloseTo(NIGHT_LIGHTNESS, 9);
+    expect(altitudeToLightness(NIGHT_FLOOR_DEG)).toBeCloseTo(NIGHT_FLOOR, 9);
+    expect(altitudeToLightness(NIGHT_FLOOR_DEG - 40)).toBeCloseTo(NIGHT_FLOOR, 9);
+    expect(altitudeToLightness(-90)).toBeCloseTo(NIGHT_FLOOR, 9);
   });
 
-  it('interpolates linearly between two anchors', () => {
-    // Midway between -12 (0.32) and -6 (0.58).
-    expect(altitudeToLightness(-9)).toBeCloseTo(0.45, 9);
+  it('is continuous where the tail meets the ramp', () => {
+    // The two branches meet at FULL_DARK_DEG. A discontinuity here would show
+    // on the dial as a hard edge partway into dusk — the exact artefact the
+    // smoothstep exists to avoid at the other end.
+    const below = altitudeToLightness(FULL_DARK_DEG - 1e-9);
+    const above = altitudeToLightness(FULL_DARK_DEG + 1e-9);
+    expect(above - below).toBeCloseTo(0, 8);
+  });
+
+  it('joins both plateaus with near-zero slope', () => {
+    // What smoothstep buys over a linear ramp: no kink where the transition
+    // meets full daylight. Linear interpolation would leave the full 0.076/°
+    // slope right up to the plateau and a visible crease on the dial.
+    const slope = (a: number, b: number) => (altitudeToLightness(b) - altitudeToLightness(a)) / (b - a);
+    const steepest = slope(-0.5, 0.5);
+    expect(Math.abs(slope(FULL_LIGHT_DEG - 0.2, FULL_LIGHT_DEG))).toBeLessThan(steepest / 10);
+    // The dark end joins the tail's own slope rather than zero, so compare
+    // against that instead of against nothing.
+    const tailSlope = (NIGHT_LIGHTNESS - NIGHT_FLOOR) / (FULL_DARK_DEG - NIGHT_FLOOR_DEG);
+    expect(slope(FULL_DARK_DEG, FULL_DARK_DEG + 0.2)).toBeLessThan(steepest / 10 + tailSlope);
+  });
+
+  it('passes through mid-lightness at the true horizon', () => {
+    // Not enforced by the function — a consequence of a symmetric window and
+    // NIGHT_LIGHTNESS near 0.09. Asserted because both ink `flipAt` thresholds
+    // are 0.5, so this is what puts the tone flip on sunrise and sunset. A
+    // retune that moves it should fail here rather than quietly slide the flip
+    // into daylight.
+    // 0.5053 as the constants stand. Stated as a tolerance rather than pinned,
+    // because the value itself carries no meaning — only its distance from 0.5.
+    expect(Math.abs(altitudeToLightness(HORIZON_DEG) - 0.5)).toBeLessThan(0.01);
   });
 
   it('never decreases as the sun climbs', () => {
@@ -40,10 +78,21 @@ describe('altitudeToLightness', () => {
     }
   });
 
-  it('is dark at night, mid at civil twilight, bright in daylight', () => {
-    expect(altitudeToLightness(-25)).toBeLessThan(0.15);
-    expect(altitudeToLightness(-3)).toBeGreaterThan(0.6);
-    expect(altitudeToLightness(30)).toBe(1);
+  it('treats the nautical and astronomical bands as night, not as twilight', () => {
+    // The point of the narrow window: at -12° and -18° a city street is lit by
+    // streetlights and nothing else, so those altitudes must read as night
+    // rather than as two more shades of dusk. The old twilight-anchored ramp
+    // put them at 0.32 and 0.14 — a third of the way to daylight.
+    expect(altitudeToLightness(-12)).toBeLessThan(NIGHT_LIGHTNESS);
+    expect(altitudeToLightness(-18)).toBeLessThan(NIGHT_LIGHTNESS);
+    expect(altitudeToLightness(-12)).toBeLessThan(0.1);
+  });
+
+  it('spends most of its range inside the transition window', () => {
+    // The fault this ramp replaced: the tail must stay a hint of shape for
+    // polar dials, not a second transition competing with the real one.
+    const tailRange = NIGHT_LIGHTNESS - NIGHT_FLOOR;
+    expect(tailRange / (1 - NIGHT_FLOOR)).toBeLessThan(0.1);
   });
 });
 

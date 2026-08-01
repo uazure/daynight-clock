@@ -58,8 +58,10 @@ export const VISUAL = {
    *
    * Editing `band` invalidates the contrast ratios written next to
    * `--dial-outline` and `--minute-ink` in `styles.css`; those were measured
-   * against 96% at the bright end and ~10.5% at the dark end (the lowest the
-   * ramp actually reaches, `LIGHTNESS_ANCHORS[0]` being 0.06 rather than 0).
+   * against 96% at the bright end, ~13.2% at the night plateau
+   * (`NIGHT_LIGHTNESS`) and ~8.6% at the deep-night floor (`NIGHT_FLOOR`, the
+   * lowest the ramp actually reaches — 0.04 rather than 0). Moving either of
+   * those two ramp constants invalidates them just as surely as moving `band`.
    */
   palette: { hue: 220, saturation: 12, band: { min: 5, max: 96 } },
 
@@ -132,14 +134,24 @@ export const VISUAL = {
     weight: 500,
     /**
      * Two tones that trade places at `flipAt`: whichever one contrasts with the
-     * face becomes the fill, and the other is stroked *underneath* it
-     * (`paint-order: stroke`) as a halo. Both halves earn their keep.
+     * face becomes the fill, and the other is available to stroke *underneath*
+     * it (`paint-order: stroke`) as a halo.
      *
-     * The halo rescues the flip. Just either side of it the fill is a mid-tone
-     * on a mid-tone — about 3.5:1, against 14:1 or better at the ends of the
-     * ramp — and that dip sits in the civil-twilight band, exactly where a
-     * reader looks to find dawn and dusk. Outlined, the glyph reads against its
-     * own halo instead of against the dial.
+     * **`outlineWidth` is 0, so no halo is painted today.** The mechanism is
+     * kept wired up — `HourLabels` still strokes `ink.outline` at this width —
+     * because a non-zero value is the one knob that fixes the flip if it ever
+     * needs fixing, and it is a knob rather than a rewrite. A zero-width SVG
+     * stroke paints nothing, so leaving it on costs a no-op attribute and no
+     * conditional.
+     *
+     * What the halo was for: just either side of the flip the fill is a
+     * mid-tone on a mid-tone — about 3.5:1, against 14:1 or better at the ends
+     * of the ramp — and outlined, the glyph reads against its own halo instead
+     * of against the dial. That dip used to sit in the middle of the
+     * civil-twilight band, spread over hours of dial arc. Since the ramp was
+     * narrowed to `FULL_DARK_DEG`…`FULL_LIGHT_DEG` the flip lands on the true
+     * horizon and the mid-tones either side of it are minutes wide, not hours,
+     * which is why 0 is a reasonable setting rather than an oversight.
      *
      * The flip keeps the glyph *solid*. A single fixed pair was tried and
      * cannot win at both ends: dark-on-light is flawless over daylight and

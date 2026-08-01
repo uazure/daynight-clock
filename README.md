@@ -1,8 +1,8 @@
 # daynight-clock
 
 A 24-hour analog clock. One full turn of the hour hand is one full day, and the
-dial is shaded by the actual light at your location: daylight, the twilight bands
-on either side, and night.
+dial is shaded by the actual light at your location: daylight, dawn and dusk on
+either side, and night.
 
 Noon sits at the top and midnight at the bottom, so the hand points up when the
 sun is up.
@@ -29,20 +29,32 @@ Pages.
 
 Rather than solving for sunrise and sunset and filling the wedges between them,
 the app samples the sun's altitude once per minute of the day in that location's
-own timezone (`src/lib/sun.ts`) and maps each sample to a lightness value (`src/lib/lightness.ts`)
-using the conventional twilight boundaries as anchors:
+own timezone (`src/lib/sun.ts`) and maps each sample to a lightness value
+(`src/lib/lightness.ts`):
 
-| Sun altitude | Meaning                     |
-| ------------ | --------------------------- |
-| above -0.83° | daylight                    |
-| -0.83°…-6°   | civil twilight              |
-| -6°…-12°     | nautical twilight           |
-| -12°…-18°    | astronomical twilight       |
-| below -18°   | night                       |
+| Sun altitude | Dial                                          |
+| ------------ | --------------------------------------------- |
+| above +6°    | full daylight, flat                           |
+| +6°…-6°      | the transition, eased so both ends join flat  |
+| -0.35°       | sunrise/sunset — the gradient's midpoint      |
+| -6°…-24°     | night, with a very shallow fade to the floor  |
+| below -24°   | deep-night floor, flat                        |
+
+The window is narrow on purpose, and deliberately **not** the civil, nautical
+and astronomical twilight bands. This is a clock for a city: clear-sky
+illuminance is about 3.4 lx at -6°, while urban street lighting delivers 5–30 lx
+at ground level, so below roughly -6° a city street has stopped getting darker
+even though the sky keeps dimming for another 12°. Anchoring on -12° and -18°
+spent a quarter of the dial's contrast on a distinction nobody standing in a
+city can see, and left mid-latitude summer nights washed out grey because the
+old floor at -30° was never reached. The shallow fade below -6° exists only so
+polar-night dials still show where solar noon is.
 
 Sampling altitude instead of solving for events means polar day and polar night
 need no special case — the dial simply comes out uniformly light or uniformly
-dark. Solar positions come from [suncalc](https://github.com/mourner/suncalc).
+dark. Solar positions come from [suncalc](https://github.com/mourner/suncalc),
+whose `getPosition` reports *apparent* (refraction-corrected) altitude — which
+is why the horizon here is -0.35° and not the geometric -0.833°.
 
 ## Location
 

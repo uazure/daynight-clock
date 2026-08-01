@@ -24,10 +24,12 @@
   --btn-primary-text: hsl(220 14% 10%);
   --hover: hsl(220 12% 20%);
   --error: hsl(8 70% 70%);
-  /* The dial's silhouette. A mid-tone that reads against both ends of the
-     ring's lightness ramp (~3.7:1 vs L96%, ~4.3:1 vs L10.5%) and against
-     either page background (~4.6:1 vs the dark L8%, ~3.5:1 vs the light
-     L96%) — which is why one value serves both themes. */
+  /* The dial's silhouette. A mid-tone that reads against every part of the
+     ring's lightness ramp (~3.7:1 vs daylight at L96%, ~4.0:1 vs the L13.2%
+     night plateau where most of night sits, ~4.5:1 vs the L8.6% deep-night
+     floor) and against either page background (~4.6:1 vs the dark L8%,
+     ~3.5:1 vs the light L96%) — which is why one value serves both themes.
+     Re-measure if VISUAL.palette.band or the ramp's plateaus move. */
   --dial-outline: hsl(220 14% 52%);
   /* The minute band, outside the face, so this sits on the page rather than
      on the shaded ring: one static value per theme, deliberately quiet
