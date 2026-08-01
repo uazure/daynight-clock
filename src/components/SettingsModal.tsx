@@ -62,21 +62,28 @@ export function SettingsModal({
         <label className="settings-legend" htmlFor="theme-select">
           Theme
         </label>
-        <select
-          id="theme-select"
-          className="settings-select"
-          value={preference}
-          aria-describedby="theme-hint"
-          // Cast rather than a guard: the options below are exactly the union, so
-          // the only strings this element can yield are members of it.
-          onChange={(event) => setPreference(event.currentTarget.value as ThemePreference)}
-        >
-          {THEME_OPTIONS.map(({ value, label }) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+        {/*
+          The wrapper exists only to hang the chevron on: `<select>` cannot carry
+          a usable `::after` in most browsers, and the native arrow it replaces
+          sits hard against the text with no way to space it.
+        */}
+        <div className="settings-select-wrap">
+          <select
+            id="theme-select"
+            className="settings-select"
+            value={preference}
+            aria-describedby="theme-hint"
+            // Cast rather than a guard: the options below are exactly the union, so
+            // the only strings this element can yield are members of it.
+            onChange={(event) => setPreference(event.currentTarget.value as ThemePreference)}
+          >
+            {THEME_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
         <p className="settings-hint" id="theme-hint">
           Automatic follows your device.
         </p>

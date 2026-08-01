@@ -450,18 +450,51 @@ input:focus-visible {
 }
 
 /*
- * Matched to `.field input` in the picker, so the app's two form controls look
- * like one family. The native dropdown this opens is drawn by the platform and
- * follows `color-scheme` on `:root` — which is why that declaration is not
- * optional: without it the option list is white-on-white in the dark theme.
+ * The chevron's positioning context, and nothing else. A `<select>` cannot carry
+ * a `::after` in most browsers, so the arrow has to hang off a wrapper.
+ * `inline-block` keeps the control's width its own rather than the sheet's — it
+ * sits beside auto-width buttons, and a full-width select looked out of family.
+ */
+.settings-select-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.settings-select-wrap::after {
+  content: "▾";
+  position: absolute;
+  top: 50%;
+  right: 0.7rem;
+  transform: translateY(-50%);
+  /* Clicks must reach the select underneath, arrow included. */
+  pointer-events: none;
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+/*
+ * Vertical padding and border match the `button` rule rather than `.field input`,
+ * because this sits next to buttons rather than next to the picker's search box —
+ * a control two pixels shorter than the button below it reads as a mistake.
+ *
+ * `appearance: none` is what buys the padding on the right: the native arrow
+ * cannot be moved, and at this size it sat hard against the longest option with
+ * the whole control shrink-wrapped around it. Only the closed state changes —
+ * the option list is still the platform's, and still follows `color-scheme` on
+ * `:root`, which is why that declaration is not optional: without it the list is
+ * white-on-white in the dark theme.
  */
 .settings-select {
-  padding: 0.4rem 0.6rem;
+  appearance: none;
+  min-width: 10rem;
+  padding: 0.45rem 2rem 0.45rem 0.9rem;
   border: 1px solid var(--border);
   border-radius: 0.4rem;
   background: transparent;
   color: inherit;
   font: inherit;
+  cursor: pointer;
 }
 
 /* Radio and checkbox rows: control, then label, on one baseline. */
