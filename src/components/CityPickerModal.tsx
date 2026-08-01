@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import { type City, loadCities, offsetsDiffer, searchCities } from '../lib/cities';
 import { deviceTimezone, utcOffsetLabel } from '../lib/location';
 import { ModalSheet } from './ModalSheet';
 
 interface Props {
   canLocate: boolean;
+  /** Passed straight through — see `ModalSheet`'s own note on the prop. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   onChooseCity: (city: City) => void;
   onUseDeviceLocation: () => void;
   onClose: () => void;
@@ -15,7 +17,7 @@ interface Props {
  * it — expanding in the flex column stole height from the clock stage and
  * visibly shrank the dial on every open and keystroke.
  */
-export function CityPickerModal({ canLocate, onChooseCity, onUseDeviceLocation, onClose }: Props) {
+export function CityPickerModal({ canLocate, restoreFocusRef, onChooseCity, onUseDeviceLocation, onClose }: Props) {
   const [cities, setCities] = useState<City[] | null>(null);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -29,7 +31,13 @@ export function CityPickerModal({ canLocate, onChooseCity, onUseDeviceLocation, 
   const zone = deviceTimezone();
 
   return (
-    <ModalSheet labelledBy="picker-title" onClose={onClose} initialFocusRef={searchRef} dismissOnScrim>
+    <ModalSheet
+      labelledBy="picker-title"
+      onClose={onClose}
+      initialFocusRef={searchRef}
+      restoreFocusRef={restoreFocusRef}
+      dismissOnScrim
+    >
       <h2 id="picker-title">Change location</h2>
 
       <div className="picker-body">

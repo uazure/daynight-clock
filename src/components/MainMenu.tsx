@@ -1,8 +1,11 @@
+import type { RefObject } from 'react';
 import type { Fullscreen } from '../hooks/useFullscreen';
 import { ModalSheet } from './ModalSheet';
 
 interface Props {
   fullscreen: Fullscreen;
+  /** Passed straight through — see `ModalSheet`'s own note on the prop. */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   onOpenSettings: () => void;
   onClose: () => void;
 }
@@ -17,11 +20,12 @@ interface Props {
  * honour it (iPhone, where Safari implements fullscreen for `<video>` only),
  * which leaves a one-item menu there rather than a control that does nothing.
  */
-export function MainMenu({ fullscreen, onOpenSettings, onClose }: Props) {
+export function MainMenu({ fullscreen, restoreFocusRef, onOpenSettings, onClose }: Props) {
   return (
     <ModalSheet
       labelledBy="menu-title"
       onClose={onClose}
+      restoreFocusRef={restoreFocusRef}
       placement="anchor-start"
       sheetClassName="sheet-menu"
       dismissOnScrim

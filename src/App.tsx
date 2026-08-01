@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { type MouseEvent, useMemo, useRef, useState } from 'react';
 import { CityPickerModal } from './components/CityPickerModal';
 import { Clock } from './components/Clock';
 import { LocationHint } from './components/LocationHint';
@@ -37,6 +37,33 @@ export default function App() {
   // themselves recomputed — a new day in the place's zone, or a new place —
   // rather than on every tick of the second hand.
   const events = useMemo(() => sunEvents(profile.altitudes), [profile]);
+  /**
+   * The control that started the current run of overlays, and where focus goes
+   * when the last of them closes.
+   *
+   * Needed because the sheets replace one another: each one's own idea of "what
+   * was focused when I opened" is a control inside the sheet it replaced, which is
+   * detached by the time the chain ends, and focusing a detached node silently
+   * does nothing — so burger → Settings → Change location → Close used to leave
+   * focus on `<body>`. Only the *entry points* set this; the handoffs between
+   * sheets deliberately leave it pointing at the origin.
+   */
+  const overlayOrigin = useRef<HTMLElement | null>(null);
+  const openFrom = (next: Exclude<Overlay, null>) => (event: MouseEvent<HTMLElement>) => {
+    overlayOrigin.current = event.currentTarget;
+    setOverlay(next);
+  };
+  /**
+   * The picker opened straight from the hint or the panel, where no chain forms:
+   * one sheet, so its own capture of the link that opened it is both correct and
+   * still attached when it closes. The anchor is *cleared* rather than left alone
+   * because it would otherwise still hold the burger from an earlier run and send
+   * focus there instead of back to the link the reader actually used.
+   */
+  const openPicker = () => {
+    overlayOrigin.current = null;
+    setOverlay('picker');
+  };
   const close = () => setOverlay(null);
 
   return (
@@ -54,9 +81,13 @@ export default function App() {
           type="button"
           className="burger"
           aria-label="Menu"
-          aria-haspopup="menu"
+          // `dialog`, not `menu`: what opens is a `role="dialog"` sheet, and
+          // `aria-haspopup` has to name the popup's actual role. Claiming `menu`
+          // also promises `role="menuitem"` children with arrow-key roving focus,
+          // which a two-item sheet does not have and does not need.
+          aria-haspopup="dialog"
           aria-expanded={overlay === 'menu'}
-          onClick={() => setOverlay('menu')}
+          onClick={openFrom('menu')}
         >
           ☰
         </button>
@@ -80,7 +111,7 @@ export default function App() {
             <LocationHint
               source={location.hint}
               onUseLocation={location.useDeviceLocation}
-              onOpenPicker={() => setOverlay('picker')}
+              onOpenPicker={openPicker}
               onDismiss={location.dismissHint}
             />
           )}
@@ -90,18 +121,29 @@ export default function App() {
           place={location.place}
           error={location.error}
           hideSource={location.hint !== null}
-          onOpenPicker={() => setOverlay('picker')}
+          onOpenPicker={openPicker}
         />
       </div>
 
+      {/*
+        Each sheet gets the same anchor, so however deep the chain went, closing
+        the last one lands focus back on the control that started it. The handoffs
+        below stay plain `setOverlay` calls precisely so they do not move it.
+      */}
       {overlay === 'menu' && (
-        <MainMenu fullscreen={fullscreen} onOpenSettings={() => setOverlay('settings')} onClose={close} />
+        <MainMenu
+          fullscreen={fullscreen}
+          restoreFocusRef={overlayOrigin}
+          onOpenSettings={() => setOverlay('settings')}
+          onClose={close}
+        />
       )}
 
       {overlay === 'settings' && (
         <SettingsModal
           place={location.place}
           showSunArc={showSunArc}
+          restoreFocusRef={overlayOrigin}
           onShowSunArcChange={setShowSunArc}
           onOpenPicker={() => setOverlay('picker')}
           onClose={close}
@@ -111,6 +153,7 @@ export default function App() {
       {overlay === 'picker' && (
         <CityPickerModal
           canLocate={location.permission !== 'unsupported' && location.permission !== 'denied'}
+          restoreFocusRef={overlayOrigin}
           onChooseCity={location.chooseCity}
           onUseDeviceLocation={location.useDeviceLocation}
           onClose={close}

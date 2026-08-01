@@ -151,19 +151,33 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    its check, and declaring only the SVG is why installing was impossible on Android for a
    while. iOS needs the separate `apple-touch-icon` link in `index.html` or it uses a
    screenshot of the page as the icon.
-9. **One `Overlay` value in `App`, never a boolean per dialog.** `null | 'menu' | 'settings'
+9. **`ModalSheet`'s focus trap takes the first and last *tab stop*, and its selector matches
+   more than that.** Unchecked radios in a group, `disabled` controls and CSS-hidden controls
+   all match `FOCUSABLE_SELECTOR` without being tab stops, and then `focusable[0]` and the
+   last entry are not the real ends: Shift-Tab from a checked radio that was not the first
+   match escaped the sheet into the browser chrome. That is why the theme control is a
+   `<select>` — one tab stop, one match — and not the radio group it briefly was. If any of
+   the three ever appear, collapse the list to real tab stops first.
+10. **Sheets replace each other, so focus restoration needs an explicit anchor.** Each sheet
+   captures what was focused when it opened, but in a chain (burger → settings → picker) that
+   capture is a control inside the sheet it replaced, detached by the time the chain ends —
+   and focusing a detached node silently does nothing, so closing left focus on `<body>`.
+   `App` holds `overlayOrigin` and passes it as `restoreFocusRef`; only the *entry points* set
+   it, and the ones that open a single sheet clear it so a stale burger reference cannot steal
+   focus from the link the reader actually used.
+11. **One `Overlay` value in `App`, never a boolean per dialog.** `null | 'menu' | 'settings'
    | 'picker'`, so "menu and settings both open" is unrepresentable and the handoffs are
    replaces rather than nests — two stacked scrims double-dim the page and stack two focus
    traps. `.app-content` is `inert` whenever one is up, which is also what stops the burger
    being re-triggered from behind a scrim. `.scrim` needs a `z-index` above `.burger`, or the
    fixed burger paints straight through the anchored menu sheet.
-10. **The dial is sized from whatever height `.panel` leaves**, so nothing in the panel may
+12. **The dial is sized from whatever height `.panel` leaves**, so nothing in the panel may
    change height after mount. That is why `LocationHint` floats over the stage and every
    chooser lives in an overlay. The portrait lift is a `transform` on `.clock` for the same
    reason: moving the dial into an `auto` grid row makes its `height: 100%` indefinite and it
    loses its size entirely. The `max-aspect-ratio` guard on that rule is load-bearing — the
    lift only has letterbox space to spend on a screen much taller than it is wide.
-11. **`suncalc`'s `getPosition().altitude` is *apparent* altitude — refraction is already
+13. **`suncalc`'s `getPosition().altitude` is *apparent* altitude — refraction is already
    in it.** So the sunrise threshold is `HORIZON_DEG = -0.349°`, not the geometric -0.833°
    every table quotes. Using -0.833° subtracts refraction twice and fired the crossing a
    flat 3 min early at mid latitudes, 4.4 min at Reykjavík, every day of the year. It

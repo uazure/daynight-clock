@@ -250,7 +250,10 @@ body {
   border: none;
   font-size: 0.8rem;
   line-height: 1;
-  opacity: 0.55;
+  /* Same reasoning as `.burger`: at 0.55 the glyph fell under 4.5:1 on the light
+     page. It stays smaller than the burger because it sits inside a bordered
+     note that already draws the eye. */
+  opacity: 0.7;
 }
 
 .hint-dismiss:hover {
@@ -401,17 +404,20 @@ input:focus-visible {
   top: calc(0.75rem + env(safe-area-inset-top));
   left: calc(0.75rem + env(safe-area-inset-left));
   z-index: 1;
-  /* Sized for a thumb, not for the glyph: 2.5rem square is 40px, about the
-     smallest comfortable touch target, and the glyph alone came to 30x22. */
+  /* Sized for a thumb, not for the glyph: 2.75rem square is 44px, which is WCAG
+     2.5.5 (AAA) as well as 2.5.8 (AA, 24px). The glyph alone came to 30x22. */
   display: grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border: none;
   font-size: 1.25rem;
   line-height: 1;
-  opacity: 0.55;
+  /* 0.55 composited to 3.85:1 against the light page — enough for a graphic
+     (1.4.11) but not for the text character this actually is (1.4.3, 4.5:1).
+     0.7 gives 8.9:1 light and 8.6:1 dark, still visibly quiet. */
+  opacity: 0.7;
 }
 
 .burger:hover {
@@ -420,22 +426,42 @@ input:focus-visible {
 
 .settings-section {
   margin: 0 0 1.25rem;
-  padding: 0;
-  border: none;
 }
 
 .settings-section:last-of-type {
   margin-bottom: 0;
 }
 
-.settings-section legend {
-  padding: 0;
-  margin-bottom: 0.5rem;
+/*
+ * One look for two elements on purpose: a `<label for>` where the section holds
+ * a single named control (the theme select) and an `<h3>` where it does not (the
+ * dial checkbox carries its own label; the location section has no one control to
+ * name). A `fieldset`/`legend` would be the third option and is wrong here —
+ * a fieldset exists to name a *group*, and every section now holds one control.
+ */
+.settings-legend {
+  display: block;
+  margin-bottom: 0.4rem;
   font-size: 0.8rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.6;
+}
+
+/*
+ * Matched to `.field input` in the picker, so the app's two form controls look
+ * like one family. The native dropdown this opens is drawn by the platform and
+ * follows `color-scheme` on `:root` — which is why that declaration is not
+ * optional: without it the option list is white-on-white in the dark theme.
+ */
+.settings-select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
 }
 
 /* Radio and checkbox rows: control, then label, on one baseline. */
