@@ -20,15 +20,37 @@ interface Props {
    * nothing.
    */
   dismissOnScrim?: boolean;
+  /**
+   * Where the sheet sits inside the scrim. `center` is the dialog default;
+   * `anchor-start` pins it to the top-left corner, under the control that opened
+   * it, which is what makes the burger menu feel like a menu rather than a
+   * dialog while still getting the focus trap and Escape handling below.
+   */
+  placement?: 'center' | 'anchor-start';
+  /** Extra class on the sheet itself, for callers that need a narrower card. */
+  sheetClassName?: string;
   children: ReactNode;
 }
 
 /**
- * The scrim-and-sheet dialog behind the city picker: focus lands inside on
- * open, Tab wraps at the sheet's ends, Escape closes, and focus returns to
- * wherever it was when the sheet unmounts.
+ * The scrim-and-sheet dialog behind the city picker, the main menu and the
+ * settings: focus lands inside on open, Tab wraps at the sheet's ends, Escape
+ * closes, and focus returns to wherever it was when the sheet unmounts.
+ *
+ * The menu shares all of that rather than reimplementing it. A two-item menu
+ * looks like it wants a lighter component, but every behaviour it needs is one
+ * of these, and each one here cost a bug to get right — see the notes on
+ * `previousFocus` and on the dependency array below.
  */
-export function ModalSheet({ labelledBy, onClose, initialFocusRef, dismissOnScrim = false, children }: Props) {
+export function ModalSheet({
+  labelledBy,
+  onClose,
+  initialFocusRef,
+  dismissOnScrim = false,
+  placement = 'center',
+  sheetClassName,
+  children,
+}: Props) {
   const sheetRef = useRef<HTMLDivElement>(null);
   // Captured during the first render, not in the effect: by effect time the
   // app behind the scrim is already `inert` (and StrictMode's re-run of the
@@ -72,7 +94,7 @@ export function ModalSheet({ labelledBy, onClose, initialFocusRef, dismissOnScri
     // would instead announce the backdrop itself as a control, which it is not.
     // biome-ignore lint/a11y/noStaticElementInteractions: presentational backdrop, see above
     <div
-      className="scrim"
+      className={placement === 'center' ? 'scrim' : 'scrim scrim-anchor-start'}
       role="presentation"
       onMouseDown={(event) => {
         if (dismissOnScrim && event.target === event.currentTarget) {
@@ -114,7 +136,13 @@ export function ModalSheet({ labelledBy, onClose, initialFocusRef, dismissOnScri
         }
       }}
     >
-      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
+      <div
+        ref={sheetRef}
+        className={sheetClassName ? `sheet ${sheetClassName}` : 'sheet'}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+      >
         {children}
       </div>
     </div>

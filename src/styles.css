@@ -1,9 +1,9 @@
 /*
  * Chrome colours only — the dial's own colours (ring ramp, tick/label ink,
  * hands) are semantic day-vs-night values decided in src/lib/visual.ts, and
- * deliberately do not change with the theme. The two dial tokens below are the
- * exceptions, and both paint on or outside the face's edge where the backdrop
- * really is the page; `visual.test.ts` pins that they are the only two.
+ * deliberately do not change with the theme. The three dial tokens below are the
+ * exceptions, and each paints on or outside the face's edge where the backdrop
+ * really is the page; `visual.test.ts` pins that they are the only three.
  *
  * Dark is the base; the light palette appears twice below because plain CSS
  * cannot join a media query and an attribute selector into one rule. Keep
@@ -35,6 +35,14 @@
      on the shaded ring: one static value per theme, deliberately quiet
      enough to stay subordinate to the hours (5.2:1 on the dark page). */
   --minute-ink: hsl(220 12% 55%);
+  /* The daylight arc, in the corridor between the rim and the minute band, so
+     also on the page. A step up from --minute-ink (7.5:1 on the dark page
+     against its 5.2:1) because it is the only thing left marking sunrise and
+     sunset now that the times are gone from the footer, so it has to be
+     findable — but only a step: the 1.4 units of air either side of it are what
+     separate it from the rim, and pushing the tone further only made the two
+     compete. */
+  --sun-arc: hsl(220 12% 66%);
 }
 
 @media (prefers-color-scheme: light) {
@@ -53,6 +61,9 @@
     --error: hsl(8 75% 38%);
     /* Darker than the dark theme's, for the same 4.7:1 against a light page. */
     --minute-ink: hsl(220 12% 45%);
+    /* Mirrors the dark theme's step up from --minute-ink: 6.0:1 against the
+       light page. */
+    --sun-arc: hsl(220 12% 38%);
   }
 }
 
@@ -71,6 +82,9 @@
   --error: hsl(8 75% 38%);
   /* Darker than the dark theme's, for the same 4.7:1 against a light page. */
   --minute-ink: hsl(220 12% 45%);
+  /* Mirrors the dark theme's step up from --minute-ink: 6.0:1 against the
+     light page. */
+  --sun-arc: hsl(220 12% 38%);
 }
 
 * {
@@ -92,12 +106,22 @@ body {
     sans-serif;
 }
 
+/*
+ * `dvh` rather than `100%`: on mobile browsers with a collapsing toolbar, 100%
+ * of the initial containing block is taller than what is actually on screen, and
+ * the footer ends up hidden behind the URL bar until you scroll. `dvh` tracks the
+ * visible viewport instead.
+ *
+ * Padded for the safe area as well as the fixed 1rem, because `viewport-fit=cover`
+ * in index.html lets the page under the notch and the rounded corners.
+ */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100dvh;
   gap: 1rem;
-  padding: 1rem;
+  padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right))
+    calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
 }
 
 /*
@@ -127,10 +151,36 @@ body {
   position: relative;
 }
 
+/*
+ * The SVG box fills the whole stage; the dial is a square inside it, centred and
+ * letterboxed by the default `preserveAspectRatio`, so its diameter is
+ * `min(stageWidth, stageHeight)` with no CSS square anywhere.
+ */
 .clock {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/*
+ * On a tall screen the dial reads better a little above centre — dead centre
+ * looks low, because the footer text below it pulls the eye down. Lifted by 8%
+ * of the stage height, which puts the dial's centre at ~40% of the viewport on
+ * the common phone sizes (390x844 and 375x812 both land at 39.6%).
+ *
+ * `translateY` on the SVG rather than a restructured stage: the dial is sized
+ * from the stage's *definite* height, and moving it into an `auto` grid row
+ * would make `height: 100%` indefinite and cost it its size.
+ *
+ * The aspect-ratio guard is load-bearing. The lift is free only while there is
+ * letterbox space above the dial to give up, which is true exactly when the
+ * stage is much taller than it is wide. On a nearly-square portrait window the
+ * letterbox is ~0 and an 8% lift would push the dial off the top of the stage.
+ */
+@media (orientation: portrait) and (max-aspect-ratio: 3 / 4) {
+  .clock {
+    transform: translateY(-8%);
+  }
 }
 
 .place {
@@ -138,18 +188,6 @@ body {
   text-align: center;
   font-size: 0.85rem;
   opacity: 0.7;
-}
-
-/*
- * The panel's payload, and the reason the hint below can stay so terse: a
- * sunrise time you have just been told is a guess makes its own argument.
- * Fully opaque, unlike the provenance around it — this is what the reader came
- * for. Unconditional, so the panel's height never moves (see LocationPanel).
- */
-.sun-times {
-  margin: 0.3rem 0 0;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
 }
 
 .tz-note {
@@ -226,6 +264,25 @@ body {
   place-items: center;
   padding: 1rem;
   background: var(--scrim);
+  /* Above `.burger`, which is itself raised over the dial. Without this the
+     burger painted straight through the anchored menu sheet and its glyph
+     landed on top of the menu's own heading. */
+  z-index: 2;
+}
+
+/*
+ * Pins the sheet to the top-left instead of centring it, for the burger menu:
+ * a menu reads as belonging to the control that opened it, and that control is
+ * up there. The scrim itself stays — the menu traps focus and closes on Escape,
+ * which is worth a backdrop, and it buys outside-click dismissal for free.
+ */
+.scrim-anchor-start {
+  place-items: start;
+  /* Top inset clears the burger itself (0.75 + 2.5rem) plus a hairline gap, so
+     the menu drops *below* the control rather than covering it — which is what
+     ties the two together. The other three sides only need the safe area. */
+  padding: calc(3.55rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right))
+    calc(0.75rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
 }
 
 .sheet {
@@ -237,6 +294,34 @@ body {
   border-radius: 0.75rem;
   background: var(--sheet-bg);
   box-shadow: 0 1rem 3rem var(--sheet-shadow);
+  /* The city picker gets away without these by pinning `.results` to a fixed
+     height, but the settings sheet's content is as tall as its content: on a
+     short landscape phone it would otherwise run off both ends of the viewport
+     with no way to reach the rest. */
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+
+/* The menu is as wide as its two items, not as wide as a dialog. */
+.sheet-menu {
+  width: auto;
+  min-width: 12rem;
+  max-width: 20rem;
+  padding: 0.5rem;
+}
+
+.sheet-menu h2 {
+  margin: 0.25rem 0.5rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+.menu-items {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .sheet h2 {
@@ -281,11 +366,112 @@ button.link {
   text-decoration: underline;
 }
 
+/* Full-width rows rather than inline buttons: a menu is a list of choices.
+   After the base `button` rule, not up with the other `.menu-*` styles, so the
+   two read in specificity order. */
+.menu-items button {
+  border: none;
+  border-radius: 0.4rem;
+  text-align: left;
+}
+
+.menu-items button:hover {
+  background: var(--hover);
+}
+
+/*
+ * The one focus style in the file, and the menu is why it had to exist: every
+ * control was reachable by keyboard already, but nothing showed where focus
+ * was once the browser default was overridden by the `border` above.
+ * `:focus-visible` rather than `:focus`, so a mouse click does not ring it.
+ */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--dial-outline);
+  outline-offset: 2px;
+}
+
+/*
+ * The only chrome control on the clock screen. Fixed rather than in the flex
+ * column so it costs the dial no height, and inset by the safe area because a
+ * top-left button is exactly what a notch and a rounded corner eat.
+ */
+.burger {
+  position: fixed;
+  top: calc(0.75rem + env(safe-area-inset-top));
+  left: calc(0.75rem + env(safe-area-inset-left));
+  z-index: 1;
+  /* Sized for a thumb, not for the glyph: 2.5rem square is 40px, about the
+     smallest comfortable touch target, and the glyph alone came to 30x22. */
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.burger:hover {
+  opacity: 1;
+}
+
+.settings-section {
+  margin: 0 0 1.25rem;
+  padding: 0;
+  border: none;
+}
+
+.settings-section:last-of-type {
+  margin-bottom: 0;
+}
+
+.settings-section legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+/* Radio and checkbox rows: control, then label, on one baseline. */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.settings-row input {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Sits under a row to explain it without competing with the label. */
+.settings-hint {
+  margin: 0.15rem 0 0 1.5rem;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+/* Not indented like `.settings-hint`: there is no control to its left. */
+.settings-place {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
 /*
  * Never grows or shrinks in the flex column — it always takes its natural
  * (content-driven) height, and the clock stage above yields whatever is
- * left. Everything that could change height after mount (the city chooser)
- * lives in the picker modal instead, so the dial's size never moves.
+ * left. Everything that could change height after mount (the city chooser, the
+ * settings) lives in an overlay instead, so the dial's size never moves.
  */
 .panel {
   flex: 0 0 auto;

@@ -4,7 +4,7 @@ import { altitudeToLightness, FULL_DARK_DEG, FULL_LIGHT_DEG, HORIZON_DEG, NIGHT_
 import { MINUTES_PER_SAMPLE, SAMPLES_PER_DAY } from './sun';
 import { VISUAL } from './visual';
 
-const { canvas, face, palette, ring, ticks, hourLabels, minuteLabels, hands } = VISUAL;
+const { canvas, face, palette, ring, ticks, hourLabels, minuteLabels, sunArc, hands } = VISUAL;
 
 /** Normalises a dial angle onto 0..360 so the two scales can be compared. */
 const turn = (deg: number) => ((deg % 360) + 360) % 360;
@@ -68,6 +68,8 @@ describe('the dial fits together', () => {
     // Only half the glyph extends past the band's radius; allowing a whole font
     // size leaves the margin the outer band needs to not look clipped.
     expect(minuteLabels.radius + minuteLabels.size).toBeLessThanOrEqual(canvas.extent);
+    // The arc is a stroke, so only half its width reaches past its radius.
+    expect(sunArc.radius + strokeReach(sunArc.width)).toBeLessThan(canvas.extent);
   });
 
   it('lengthens each tick tier in step with its emphasis', () => {
@@ -162,6 +164,22 @@ describe('the two numeral scales', () => {
     );
   });
 
+  it('threads the daylight arc between the rim and the minute band', () => {
+    // Painted edges on both sides, for the same reason the test above uses
+    // them: the arc has ~3 units of corridor to live in and 0.8 of air to
+    // either side, so a change measured against nominal radii would look
+    // fine here and collide on screen.
+    expect(sunArc.radius - strokeReach(sunArc.width)).toBeGreaterThan(face.radius + strokeReach(face.rim.width));
+    expect(sunArc.radius + strokeReach(sunArc.width)).toBeLessThan(minuteLabels.radius - glyphReach(minuteLabels.size));
+  });
+
+  it('draws the daylight arc heavier than the rim it sits beside', () => {
+    // Matching the rim's weight 0.8 units away from it reads as a second
+    // silhouette rather than as its own mark. Length is not available as a
+    // signal here — the arc's length is the day — so weight is the only one.
+    expect(sunArc.width).toBeGreaterThan(face.rim.width);
+  });
+
   it('gives every anchor tick a numeral to anchor', () => {
     // A tier drawn longest and heaviest but landing on an unlabelled hour would
     // read as emphasis pointing at nothing.
@@ -176,13 +194,14 @@ describe('the two numeral scales', () => {
 
 describe('the dial palette', () => {
   it('paints the dial itself in theme-independent colour', () => {
-    // AGENTS.md rule 5: the theme switches page chrome, never the dial. The two
-    // exceptions both paint on or outside the face's edge, where the backdrop
-    // really is the page — the rim straddles it, the minute band sits beyond
-    // it. Everything else lands on the day/night gradient and must not move
-    // when the theme does.
+    // AGENTS.md rule 5: the theme switches page chrome, never the dial. The
+    // three exceptions each paint on or outside the face's edge, where the
+    // backdrop really is the page — the rim straddles it, the daylight arc sits
+    // in the corridor just beyond it, the minute band beyond that. Everything
+    // else lands on the day/night gradient and must not move when the theme
+    // does. Exact equality, so a fourth cannot be added without arguing for it.
     const themed = colours.filter((leaf) => String(leaf.value).includes('var('));
-    expect(themed.map((leaf) => leaf.path).sort()).toEqual(['face.rim.color', 'minuteLabels.fill']);
+    expect(themed.map((leaf) => leaf.path).sort()).toEqual(['face.rim.color', 'minuteLabels.fill', 'sunArc.color']);
   });
 
   it('keeps every literal colour on the palette hue', () => {

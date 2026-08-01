@@ -52,10 +52,10 @@ the build itself has no OS dependencies, though development here happens on Wind
 
 ```
 src/lib/         pure logic + colocated *.test.ts (time, sun, lightness, visual, dial,
-                 geometry, location, cities, theme)
-src/hooks/       useNow, useDayProfile, useLocation, useTheme
-src/components/  Clock + dial parts, LocationPanel, LocationHint, ThemeToggle, ModalSheet
-                 and its one dialog (CityPickerModal)
+                 geometry, location, cities, theme, settings)
+src/hooks/       useNow, useDayProfile, useLocation, useTheme, useSettings, useFullscreen
+src/components/  Clock + dial parts (incl. SunArc), LocationPanel, LocationHint, ModalSheet
+                 and its three dialogs (MainMenu, SettingsModal, CityPickerModal)
 src/data/        generated JSON — do not hand-edit; see src/data/README.md
 scripts/         build-cities.mjs, run by hand, never part of the build
 ```
@@ -138,8 +138,9 @@ failure it prevents — the notes here are the index, the code holds the reasoni
 5. **The theme switches page chrome, never the dial.** Night stays dark and day stays
    bright in both themes. Every dial visual — color, size, radius, stroke width — is
    decided in `src/lib/visual.ts` and nowhere else; a literal `hsl()` there is
-   theme-independent, and the only two `var(--…)` exceptions paint on or outside the face's
-   edge, where the backdrop really is the page. `visual.test.ts` pins that split.
+   theme-independent, and the only three `var(--…)` exceptions paint on or outside the face's
+   edge, where the backdrop really is the page — the rim, the daylight arc, the minute band.
+   `visual.test.ts` pins that split by exact equality, so a fourth has to be argued for.
 6. **Keep `cities.json` behind a dynamic `import()`.** A static import puts ~155 KB into
    the initial bundle.
 7. **Don't hand-edit `src/data/*.json`** and don't wire `scripts/build-cities.mjs` into
@@ -150,7 +151,19 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    its check, and declaring only the SVG is why installing was impossible on Android for a
    while. iOS needs the separate `apple-touch-icon` link in `index.html` or it uses a
    screenshot of the page as the icon.
-9. **`suncalc`'s `getPosition().altitude` is *apparent* altitude — refraction is already
+9. **One `Overlay` value in `App`, never a boolean per dialog.** `null | 'menu' | 'settings'
+   | 'picker'`, so "menu and settings both open" is unrepresentable and the handoffs are
+   replaces rather than nests — two stacked scrims double-dim the page and stack two focus
+   traps. `.app-content` is `inert` whenever one is up, which is also what stops the burger
+   being re-triggered from behind a scrim. `.scrim` needs a `z-index` above `.burger`, or the
+   fixed burger paints straight through the anchored menu sheet.
+10. **The dial is sized from whatever height `.panel` leaves**, so nothing in the panel may
+   change height after mount. That is why `LocationHint` floats over the stage and every
+   chooser lives in an overlay. The portrait lift is a `transform` on `.clock` for the same
+   reason: moving the dial into an `auto` grid row makes its `height: 100%` indefinite and it
+   loses its size entirely. The `max-aspect-ratio` guard on that rule is load-bearing — the
+   lift only has letterbox space to spend on a screen much taller than it is wide.
+11. **`suncalc`'s `getPosition().altitude` is *apparent* altitude — refraction is already
    in it.** So the sunrise threshold is `HORIZON_DEG = -0.349°`, not the geometric -0.833°
    every table quotes. Using -0.833° subtracts refraction twice and fired the crossing a
    flat 3 min early at mid latitudes, 4.4 min at Reykjavík, every day of the year. It

@@ -56,6 +56,22 @@ dark. Solar positions come from [suncalc](https://github.com/mourner/suncalc),
 whose `getPosition` reports *apparent* (refraction-corrected) altitude — which
 is why the horizon here is -0.35° and not the geometric -0.833°.
 
+A thin band in the corridor just outside the rim runs from sunrise to sunset, so
+the two instants are readable off the dial without printing them. Polar day makes
+it a complete ring and polar night removes it; near the polar circles there are
+days when daylight wraps midnight and it becomes two bands, one at each end of the
+dial. It can be switched off in the settings.
+
+## Controls
+
+Everything lives behind the burger button in the top-left corner: **Settings** for
+the theme, the daylight arc and the location, and **Full screen** where the browser
+supports it. The footer under the dial names the place, its coordinates and where
+that guess came from, with a `change` link straight to the city picker.
+
+On a tall screen the dial sits a little above centre rather than dead centre —
+centred looks low once the footer text is pulling the eye down.
+
 ## Location
 
 The clock needs only a rough position; it never asks for a precise one.

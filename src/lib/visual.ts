@@ -178,15 +178,56 @@ export const VISUAL = {
      * clock face at.
      */
     step: 5,
-    radius: 93,
+    /**
+     * Nudged out from 93 to make room for `sunArc` between this band and the
+     * rim. At 93 the arc had only 0.8 units of air on each side and the two
+     * strokes merged into what read as a doubled silhouette rather than as two
+     * marks. 94 leaves 1.4 either side, and 94 + `size` is still 99, inside the
+     * viewBox with a unit to spare.
+     */
+    radius: 94,
     size: 5,
     weight: 300,
     /**
-     * The one dial colour that follows the theme, and legitimately so: this
+     * One of the dial colours that follows the theme, and legitimately so: this
      * band sits outside the face, on the page. Deliberately quiet enough to
      * stay subordinate to the hours — see `--minute-ink` in `styles.css`.
      */
     fill: 'var(--minute-ink)',
+  },
+
+  /**
+   * The band outside the rim spanning sunrise to sunset — what replaced the
+   * "Sunrise 05:31 · Sunset 20:45" line that used to sit under the dial.
+   *
+   * It lives in the corridor between the rim's painted outer edge (87.5) and the
+   * minute numerals' inner edge (91.5) — the only free band that still reads as
+   * part of the dial rather than as a detached ring. At width 1.2 it spans
+   * 88.9…90.1, leaving 1.4 units of air on each side, symmetric, and pinned by
+   * `visual.test.ts` against both neighbours' *painted* edges rather than their
+   * nominal radii.
+   *
+   * **That air is the whole reason `minuteLabels.radius` moved out to 94.** The
+   * first attempt kept the band at 93, which left only 0.8 units either side: at
+   * a 375px viewport that is ~1.4px, and on screen the arc and the rim merged
+   * into a single doubled stroke that read as a rendering artefact rather than as
+   * a mark. Widening the gap fixed it where retuning the colour could not.
+   *
+   * Slightly heavier than the 1-unit rim so it is not mistaken for one, but not
+   * by much — the separation now does that work. Its ends are radial faces rather
+   * than round caps, so each marks an exact minute; a round cap would smear each
+   * end by half the width, about three minutes of dial arc, which is the one
+   * thing this element exists to state precisely.
+   *
+   * Themed for the same reason `minuteLabels.fill` is: out here the backdrop is
+   * the page, not the day/night gradient, so a fixed tone would fight one of the
+   * two themes. That makes it the third and last entry in the allowlist
+   * `visual.test.ts` pins.
+   */
+  sunArc: {
+    radius: 89.5,
+    width: 1.2,
+    color: 'var(--sun-arc)',
   },
 
   hands: {

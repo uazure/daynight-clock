@@ -9,9 +9,10 @@ interface Props {
 
 /**
  * What the reader is told about a guessed place. Deliberately just the
- * provenance: the sunrise and sunset times sit a few lines below in the panel,
- * and a concrete time you have been told is a guess argues for itself better
- * than any claim about how wrong it might be.
+ * provenance: the dial behind this note is already shaded for the guess, with
+ * the daylight arc marking where it thinks sunrise and sunset fall, and a
+ * dawn in visibly the wrong place argues for itself better than any claim
+ * about how wrong the guess might be.
  */
 const LEAD: Record<GuessedSource, string> = {
   timezone: 'Guessed from your timezone',
