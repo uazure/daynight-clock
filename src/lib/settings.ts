@@ -17,28 +17,39 @@ const SUN_ARC_KEY = 'daynight.showSunArc';
 /**
  * Whether the daylight arc is drawn outside the rim.
  *
- * Defaults to **on**: the arc is what replaced the "Sunrise 05:31 · Sunset
- * 20:45" line that used to sit under the dial, so defaulting it off would drop
- * that information entirely for anyone who never opens the settings. That makes
- * `true` the absence case — `saveShowSunArc(true)` removes the key rather than
- * writing it, so a fresh install and a deliberate re-enable are the same state.
+ * Defaults to **off**, so the arc is opt-in. It defaulted to on when it first
+ * arrived, on the argument that it replaced the "Sunrise 05:31 · Sunset 20:45"
+ * line that used to sit under the dial and that dropping the default would drop
+ * that information for anyone who never opens the settings. What that argument
+ * missed is that the face already carries the same two instants: the gradient's
+ * midpoint *is* the horizon, so sunrise and sunset are where the shading turns,
+ * and the arc restates them as a second mark outside the rim. The plain dial is
+ * the better default; the arc stays for readers who want the boundary called
+ * out explicitly.
+ *
+ * That makes `false` the absence case — `saveShowSunArc(false)` removes the key
+ * rather than writing it, so a fresh install and a deliberate switch-off are the
+ * same state. The flip needs no migration either: the old default wrote nothing
+ * and the old off state wrote `'false'`, neither of which is `'true'`, so
+ * everyone lands on the new default except readers who switch it on from here.
  */
 export function loadShowSunArc(): boolean {
   try {
-    // Only the exact string 'false' turns it off. Anything else — absent, or
-    // junk left by a hand-edited storage — reads as the default.
-    return localStorage.getItem(SUN_ARC_KEY) !== 'false';
+    // Only the exact string 'true' turns it on. Anything else — absent, junk
+    // from a hand-edited storage, or the 'false' the previous default wrote —
+    // reads as off.
+    return localStorage.getItem(SUN_ARC_KEY) === 'true';
   } catch {
-    return true;
+    return false;
   }
 }
 
 export function saveShowSunArc(showSunArc: boolean): void {
   try {
     if (showSunArc) {
-      localStorage.removeItem(SUN_ARC_KEY);
+      localStorage.setItem(SUN_ARC_KEY, 'true');
     } else {
-      localStorage.setItem(SUN_ARC_KEY, 'false');
+      localStorage.removeItem(SUN_ARC_KEY);
     }
   } catch {
     // ignored: the choice still applies for this session

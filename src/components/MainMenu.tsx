@@ -7,6 +7,7 @@ interface Props {
   /** Passed straight through — see `ModalSheet`'s own note on the prop. */
   restoreFocusRef?: RefObject<HTMLElement | null>;
   onOpenSettings: () => void;
+  onOpenAbout: () => void;
   onClose: () => void;
 }
 
@@ -20,7 +21,7 @@ interface Props {
  * honour it (iPhone, where Safari implements fullscreen for `<video>` only),
  * which leaves a one-item menu there rather than a control that does nothing.
  */
-export function MainMenu({ fullscreen, restoreFocusRef, onOpenSettings, onClose }: Props) {
+export function MainMenu({ fullscreen, restoreFocusRef, onOpenSettings, onOpenAbout, onClose }: Props) {
   return (
     <ModalSheet
       labelledBy="menu-title"
@@ -50,6 +51,15 @@ export function MainMenu({ fullscreen, restoreFocusRef, onOpenSettings, onClose 
             {fullscreen.active ? 'Exit full screen' : 'Full screen'}
           </button>
         )}
+
+        {/*
+          Last, and phrased as the question rather than as "About": someone who
+          needs it is asking exactly this, and someone who does not can see at a
+          glance that the row is not for them.
+        */}
+        <button type="button" onClick={onOpenAbout}>
+          What is this?
+        </button>
       </div>
     </ModalSheet>
   );

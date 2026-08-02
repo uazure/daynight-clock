@@ -2,12 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { type City, cityToPlace } from '../lib/cities';
 import {
   clearOverride,
-  dismissPrompt,
   type GeoPermission,
-  type GuessedSource,
   geolocationPermission,
-  isGuessed,
-  isPromptDismissed,
   type Place,
   placeFromTimezone,
   requestCoarsePosition,
@@ -19,28 +15,31 @@ export interface LocationState {
   place: Place;
   permission: GeoPermission;
   error: string | null;
-  /**
-   * Which guess the location hint should own up to, or `null` when the hint
-   * should not be on screen at all: the place is already stated rather than
-   * guessed, the browser would refuse a request anyway, or the reader has
-   * waved the hint away before.
-   *
-   * Never set on the very first render — `permission` is only known once its
-   * promise settles — which is why the hint floats over the dial rather than
-   * sitting in the panel, where its arrival a tick later would resize the
-   * clock.
-   */
-  hint: GuessedSource | null;
-  dismissHint: () => void;
   chooseCity: (city: City) => void;
   useDeviceLocation: () => void;
+  /**
+   * Back to the place the app resolves on its own, with no city and no fix: the
+   * guess made from the device's IANA zone.
+   *
+   * Distinct from `useDeviceLocation` in the one way that matters — it asks the
+   * browser for nothing. Clearing a chosen city was only possible by way of *Use
+   * my location*, which makes the way out of a wrong city a geolocation prompt,
+   * and rule 4 is that a fix happens on an explicit request for one and not as a
+   * side effect of something else. Someone who picked Tokyo by accident wants
+   * their timezone back, not a permission dialog.
+   *
+   * For a `gps` place this resets the session only: with the permission already
+   * granted, the next load takes a fix again, which is the documented resolver
+   * chain doing its job rather than the reset failing. For a `manual` one it is
+   * permanent, because the stored override is what it removes.
+   */
+  useTimezoneLocation: () => void;
 }
 
 export function useLocation(): LocationState {
   const [place, setPlace] = useState<Place>(resolveInitialPlace);
   const [permission, setPermission] = useState<GeoPermission>('unsupported');
   const [error, setError] = useState<string | null>(null);
-  const [hintDismissed, setHintDismissed] = useState(isPromptDismissed);
 
   const locate = useCallback(async () => {
     setError(null);
@@ -54,7 +53,7 @@ export function useLocation(): LocationState {
 
   // Read the permission state once, on mount. Nothing here can trigger a
   // browser permission dialog except the `granted` branch, where there is no
-  // dialog — the hint's button is the only path to one.
+  // dialog — the picker's *Use my location* is the only path to one.
   useEffect(() => {
     let cancelled = false;
 
@@ -86,11 +85,6 @@ export function useLocation(): LocationState {
     };
   }, [locate]);
 
-  const dismissHint = useCallback(() => {
-    setHintDismissed(true);
-    dismissPrompt();
-  }, []);
-
   const chooseCity = useCallback((city: City) => {
     const chosen = cityToPlace(city);
     saveOverride(chosen);
@@ -104,16 +98,21 @@ export function useLocation(): LocationState {
     void locate();
   }, [locate]);
 
+  // `useDeviceLocation` without the fix — see the note on the interface. The
+  // error is cleared too: a failed geolocation attempt is not news about a place
+  // the reader has just resolved another way.
+  const useTimezoneLocation = useCallback(() => {
+    clearOverride();
+    setPlace(placeFromTimezone());
+    setError(null);
+  }, []);
+
   return {
     place,
     permission,
     error,
-    // `denied` and `unsupported` are deliberately excluded: there the hint's
-    // button could not do anything, and the panel's "change" link already
-    // leads to the city picker.
-    hint: !hintDismissed && permission === 'prompt' && isGuessed(place.source) ? place.source : null,
-    dismissHint,
     chooseCity,
     useDeviceLocation,
+    useTimezoneLocation,
   };
 }

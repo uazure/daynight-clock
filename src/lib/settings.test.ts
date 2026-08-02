@@ -45,12 +45,12 @@ afterEach(() => {
 });
 
 describe('the stored daylight-arc preference', () => {
-  it('defaults to on when nothing is stored', () => {
-    expect(loadShowSunArc()).toBe(true);
+  it('defaults to off when nothing is stored', () => {
+    expect(loadShowSunArc()).toBe(false);
   });
 
   it('round-trips both choices through storage', () => {
-    for (const showSunArc of [false, true, false]) {
+    for (const showSunArc of [true, false, true]) {
       saveShowSunArc(showSunArc);
       expect(loadShowSunArc()).toBe(showSunArc);
     }
@@ -58,23 +58,31 @@ describe('the stored daylight-arc preference', () => {
 
   it('stores the default as an absence, not a value', () => {
     // Same trick as `theme.ts` with `auto`: a fresh install and a deliberate
-    // re-enable have to be the same state, or the two disagree after an upgrade
+    // switch-off have to be the same state, or the two disagree after an upgrade
     // that changes the default.
-    saveShowSunArc(false);
     saveShowSunArc(true);
+    saveShowSunArc(false);
     expect(localStorage.getItem('daynight.showSunArc')).toBeNull();
   });
 
-  it('treats an unrecognised stored value as on', () => {
-    // Only the exact string 'false' turns it off, so junk fails safe towards
-    // showing the arc rather than silently hiding it.
+  it('treats an unrecognised stored value as off', () => {
+    // Only the exact string 'true' turns it on, so junk falls back to the
+    // default rather than to whatever the junk resembles.
     localStorage.setItem('daynight.showSunArc', 'maybe');
-    expect(loadShowSunArc()).toBe(true);
+    expect(loadShowSunArc()).toBe(false);
   });
 
-  it('reads as on rather than throwing when storage is unavailable', () => {
+  it("reads the previous default's off marker as off", () => {
+    // The arc used to default to on, with 'false' written for the off choice.
+    // Those keys are still out there, and they have to keep meaning off — this
+    // is the whole of the migration for the flipped default.
+    localStorage.setItem('daynight.showSunArc', 'false');
+    expect(loadShowSunArc()).toBe(false);
+  });
+
+  it('reads as off rather than throwing when storage is unavailable', () => {
     vi.stubGlobal('localStorage', throwingStorage());
-    expect(loadShowSunArc()).toBe(true);
+    expect(loadShowSunArc()).toBe(false);
   });
 
   it('does not throw when storage writes fail', () => {

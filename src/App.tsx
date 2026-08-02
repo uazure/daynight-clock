@@ -1,7 +1,7 @@
 import { type MouseEvent, useMemo, useRef, useState } from 'react';
+import { AboutModal } from './components/AboutModal';
 import { CityPickerModal } from './components/CityPickerModal';
 import { Clock } from './components/Clock';
-import { LocationHint } from './components/LocationHint';
 import { LocationPanel } from './components/LocationPanel';
 import { MainMenu } from './components/MainMenu';
 import { SettingsModal } from './components/SettingsModal';
@@ -10,7 +10,7 @@ import { useFullscreen } from './hooks/useFullscreen';
 import { useLocation } from './hooks/useLocation';
 import { useNow } from './hooks/useNow';
 import { useSettings } from './hooks/useSettings';
-import { deviceTimezone } from './lib/location';
+import { deviceTimezone, isGuessed } from './lib/location';
 import { sunEvents } from './lib/sun';
 
 /**
@@ -21,7 +21,7 @@ import { sunEvents } from './lib/sun';
  * overlay closes whatever was there, so the menu handing off to the settings
  * sheet is a replace, and so is the settings sheet handing off to the picker.
  */
-type Overlay = null | 'menu' | 'settings' | 'picker';
+type Overlay = null | 'menu' | 'settings' | 'picker' | 'about';
 
 export default function App() {
   const location = useLocation();
@@ -29,6 +29,18 @@ export default function App() {
   const fullscreen = useFullscreen();
   const [showSunArc, setShowSunArc] = useSettings();
   const [overlay, setOverlay] = useState<Overlay>(null);
+  /**
+   * Where the picker goes when it closes: back to the settings sheet if that is
+   * what opened it, and away entirely if the footer's `change` link did.
+   *
+   * Closing a dialog has to undo the *one* opening it belongs to. Every sheet
+   * closing to `null` meant Close on the picker also took the settings sheet
+   * with it, which reads as the app dismissing a whole conversation because you
+   * finished a sentence. This is a return target, not a second open overlay —
+   * the one-value invariant above still holds, and only the picker has anywhere
+   * to return to, since it is the only sheet another sheet opens.
+   */
+  const [pickerReturnsTo, setPickerReturnsTo] = useState<Extract<Overlay, 'settings'> | null>(null);
   // `tz` is absent only for fallback places and pre-tz stored overrides;
   // the device zone is the only sensible reading of "local time" there.
   const timeZone = location.place.tz ?? deviceTimezone();
@@ -54,17 +66,28 @@ export default function App() {
     setOverlay(next);
   };
   /**
-   * The picker opened straight from the hint or the panel, where no chain forms:
-   * one sheet, so its own capture of the link that opened it is both correct and
-   * still attached when it closes. The anchor is *cleared* rather than left alone
-   * because it would otherwise still hold the burger from an earlier run and send
-   * focus there instead of back to the link the reader actually used.
+   * The picker opened straight from the footer's `change` link, where no chain
+   * forms: one sheet, so its own capture of the link that opened it is both
+   * correct and still attached when it closes. The anchor is *cleared* rather
+   * than left alone because it would otherwise still hold the burger from an
+   * earlier run and send focus there instead of back to the link the reader
+   * actually used.
    */
   const openPicker = () => {
     overlayOrigin.current = null;
+    setPickerReturnsTo(null);
     setOverlay('picker');
   };
-  const close = () => setOverlay(null);
+  const close = () => {
+    setOverlay(null);
+    setPickerReturnsTo(null);
+  };
+  /**
+   * Deliberately leaves `pickerReturnsTo` alone: `SettingsModal` reads it in the
+   * same render to know it is being shown again rather than opened afresh, and
+   * `close` clears it when the chain actually ends.
+   */
+  const closePicker = () => (pickerReturnsTo === null ? close() : setOverlay(pickerReturnsTo));
 
   return (
     <main className="app">
@@ -93,8 +116,9 @@ export default function App() {
         </button>
 
         {/*
-          The hint is positioned against the stage, not the panel, so that its
-          arrival and dismissal never change the height the dial is sized from.
+          Nothing but the dial lives in here. A first-run note used to float over
+          its lower rim, which put the app's one explanation on top of the one
+          thing it was explaining; the panel below now carries what it said.
         */}
         <div className="clock-stage">
           <Clock
@@ -106,23 +130,9 @@ export default function App() {
             // draw it from.
             events={showSunArc ? events : null}
           />
-
-          {location.hint && (
-            <LocationHint
-              source={location.hint}
-              onUseLocation={location.useDeviceLocation}
-              onOpenPicker={openPicker}
-              onDismiss={location.dismissHint}
-            />
-          )}
         </div>
 
-        <LocationPanel
-          place={location.place}
-          error={location.error}
-          hideSource={location.hint !== null}
-          onOpenPicker={openPicker}
-        />
+        <LocationPanel place={location.place} error={location.error} onOpenPicker={openPicker} />
       </div>
 
       {/*
@@ -135,17 +145,26 @@ export default function App() {
           fullscreen={fullscreen}
           restoreFocusRef={overlayOrigin}
           onOpenSettings={() => setOverlay('settings')}
+          onOpenAbout={() => setOverlay('about')}
           onClose={close}
         />
       )}
+
+      {overlay === 'about' && <AboutModal restoreFocusRef={overlayOrigin} onClose={close} />}
 
       {overlay === 'settings' && (
         <SettingsModal
           place={location.place}
           showSunArc={showSunArc}
+          // Set only while this sheet is the picker's return target, which is
+          // true exactly when the picker has just closed back into it.
+          returningFromPicker={pickerReturnsTo === 'settings'}
           restoreFocusRef={overlayOrigin}
           onShowSunArcChange={setShowSunArc}
-          onOpenPicker={() => setOverlay('picker')}
+          onOpenPicker={() => {
+            setPickerReturnsTo('settings');
+            setOverlay('picker');
+          }}
           onClose={close}
         />
       )}
@@ -153,10 +172,14 @@ export default function App() {
       {overlay === 'picker' && (
         <CityPickerModal
           canLocate={location.permission !== 'unsupported' && location.permission !== 'denied'}
+          // A place that is already a guess is what resetting would produce, so
+          // the reset is offered only where it has something to undo.
+          canReset={!isGuessed(location.place.source)}
           restoreFocusRef={overlayOrigin}
           onChooseCity={location.chooseCity}
           onUseDeviceLocation={location.useDeviceLocation}
-          onClose={close}
+          onUseTimezone={location.useTimezoneLocation}
+          onClose={closePicker}
         />
       )}
     </main>

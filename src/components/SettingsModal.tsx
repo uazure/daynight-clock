@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { type RefObject, useRef } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import type { Place } from '../lib/location';
 import type { ThemePreference } from '../lib/theme';
@@ -7,6 +7,14 @@ import { ModalSheet } from './ModalSheet';
 interface Props {
   place: Place;
   showSunArc: boolean;
+  /**
+   * Set when this sheet is on screen again because the city picker it opened has
+   * just closed, rather than because it was opened from the menu. Focus then
+   * lands on *Change location…* instead of on the first control in the sheet:
+   * the sheet is remounted either way, so without this the reader is returned to
+   * the top of a dialog they were in the middle of.
+   */
+  returningFromPicker?: boolean;
   /** Passed straight through — see `ModalSheet`'s own note on the prop. */
   restoreFocusRef?: RefObject<HTMLElement | null>;
   onShowSunArcChange: (next: boolean) => void;
@@ -40,22 +48,33 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
  *   solid ground, and it is the native control for one exclusive choice among a
  *   few. It costs one interaction to see the options, which is the trade.
  *
- * The native dropdown follows the theme only because `color-scheme` is declared
- * in all three theme blocks in styles.css. Remove it and the option list goes
- * white-on-white in dark mode.
+ * Getting the native dropdown to follow the theme takes both `color-scheme` in
+ * all three theme blocks in styles.css *and* the explicit background the
+ * `.settings-select` rule there sets on the closed control and its options; the
+ * note on that rule has the failure each one prevents.
  */
 export function SettingsModal({
   place,
   showSunArc,
+  returningFromPicker,
   restoreFocusRef,
   onShowSunArcChange,
   onOpenPicker,
   onClose,
 }: Props) {
   const [preference, setPreference] = useTheme();
+  const changeLocationRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <ModalSheet labelledBy="settings-title" onClose={onClose} restoreFocusRef={restoreFocusRef} dismissOnScrim>
+    <ModalSheet
+      labelledBy="settings-title"
+      onClose={onClose}
+      // Only on the way back from the picker; otherwise the sheet's own default
+      // (its first focusable, the theme select) is the right landing place.
+      initialFocusRef={returningFromPicker ? changeLocationRef : undefined}
+      restoreFocusRef={restoreFocusRef}
+      dismissOnScrim
+    >
       <h2 id="settings-title">Settings</h2>
 
       <div className="settings-section">
@@ -108,7 +127,7 @@ export function SettingsModal({
       <div className="settings-section">
         <h3 className="settings-legend">Location</h3>
         <p className="settings-place">{place.label}</p>
-        <button type="button" onClick={onOpenPicker}>
+        <button ref={changeLocationRef} type="button" onClick={onOpenPicker}>
           Change location…
         </button>
       </div>

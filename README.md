@@ -56,18 +56,21 @@ dark. Solar positions come from [suncalc](https://github.com/mourner/suncalc),
 whose `getPosition` reports *apparent* (refraction-corrected) altitude — which
 is why the horizon here is -0.35° and not the geometric -0.833°.
 
-A thin band in the corridor just outside the rim runs from sunrise to sunset, so
-the two instants are readable off the dial without printing them. Polar day makes
-it a complete ring and polar night removes it; near the polar circles there are
-days when daylight wraps midnight and it becomes two bands, one at each end of the
-dial. It can be switched off in the settings.
+A thin band in the corridor just outside the rim can run from sunrise to sunset, so
+the two instants are marked explicitly rather than only by where the shading turns.
+Polar day makes it a complete ring and polar night removes it; near the polar circles
+there are days when daylight wraps midnight and it becomes two bands, one at each end
+of the dial. It is **off by default** — the face already says where sunrise and
+sunset are — and switched on in the settings.
 
 ## Controls
 
 Everything lives behind the burger button in the top-left corner: **Settings** for
-the theme, the daylight arc and the location, and **Full screen** where the browser
-supports it. The footer under the dial names the place, its coordinates and where
-that guess came from, with a `change` link straight to the city picker.
+the theme, the daylight arc and the location, **Full screen** where the browser
+supports it, and **What is this?** for the short version of the idea. The footer
+under the dial names the place, its coordinates and where that guess came from,
+with a `change` link straight to the city picker. Nothing covers the dial on the
+first run; on a phone the dialogs open full screen.
 
 On a tall screen the dial sits a little above centre rather than dead centre —
 centred looks low once the footer text is pulling the eye down.
@@ -77,13 +80,14 @@ centred looks low once the footer text is pulling the eye down.
 The clock needs only a rough position; it never asks for a precise one.
 
 1. A city you picked yourself, if you picked one. An explicit choice wins over
-   everything below it, on every later visit, until you clear it with
-   *Use my location*.
+   everything below it, on every later visit, until you clear it — with
+   *Use my location*, or with *Use my timezone*, which drops back to tier 3
+   below without asking the browser for anything.
 2. A coarse browser geolocation fix, rounded to about a kilometer. Nothing is
-   requested on load: if the browser has not been asked yet, an explanation
-   comes first and the fix only happens if you agree. If you have already
-   granted the permission on a previous visit, the fix happens without another
-   dialog — the browser has no dialog left to show.
+   requested on load: the fix happens only when you press *Use my location* in
+   the city picker, next to the line saying what is collected. If you have
+   already granted the permission on a previous visit, it happens without a
+   dialog — the browser has none left to show.
 3. Otherwise, a guess from your device's timezone: the largest city in that
    IANA zone, or — if the zone name is one the bundled table does not carry —
    any zone at the same UTC offset, which the panel labels as the rougher guess

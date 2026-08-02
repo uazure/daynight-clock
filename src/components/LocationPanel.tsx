@@ -4,40 +4,49 @@ import { deviceTimezone, type Place, utcOffsetLabel } from '../lib/location';
 interface Props {
   place: Place;
   error: string | null;
-  /**
-   * Set while the location hint is on screen. The hint already names the
-   * provenance, and two lines a few pixels apart both saying "guessed from
-   * your timezone" reads like a stutter.
-   */
-  hideSource: boolean;
   onOpenPicker: () => void;
 }
 
+/**
+ * How the place is described, in the reader's terms rather than the resolver's.
+ * Each tier stays labelled honestly — a borrowed latitude must not be presented
+ * with the confidence of a real zone match — but none of them argue with the
+ * reader: the dial behind this line is already shaded for the place named in it,
+ * and a dawn in visibly the wrong spot makes the case for changing it better
+ * than any warning here could.
+ */
 const SOURCE_TEXT: Record<Place['source'], string> = {
-  manual: 'chosen by you',
+  manual: 'from the city you picked',
   gps: 'from your device',
-  timezone: 'guessed from your timezone',
-  offset: 'rough guess from your UTC offset — pick a city to be sure',
-  fallback: 'unknown — pick a city below',
+  timezone: 'from your timezone',
+  offset: 'roughly, from your UTC offset',
+  fallback: 'no location yet — pick a city',
 };
 
 /**
- * The footer under the clock: where the dial's idea of "here" came from, and the
- * one link that changes it.
+ * The footer under the clock: what the dial is showing, where that came from,
+ * and the one link that changes it.
+ *
+ * This line is now the *whole* of the first-run experience. A floating note used
+ * to appear over the dial's lower rim on a guessed place, offering geolocation
+ * and a city picker; it covered the clock at the exact moment someone was
+ * meeting it for the first time, to say something the reader had not yet asked.
+ * Naming the place plainly says the same thing in the space that was already
+ * reserved for saying it, and `change` leads to every way of correcting it.
  *
  * Deliberately holds nothing that appears or disappears after mount — the dial
  * takes whatever height this panel leaves over (see `.clock-stage`), so a line
- * arriving late resizes the clock. The chooser lives in `CityPickerModal`, the
- * first-run nudge in `LocationHint` and everything configurable in
- * `SettingsModal`, all of them floating over the dial or replacing it, for that
- * reason.
+ * arriving late resizes the clock. That is also why the source is stated
+ * unconditionally now: it used to be suppressed while the floating note was up,
+ * which made it a line that could arrive a tick after mount.
  *
  * It used to also print the day's sunrise and sunset, and to carry the theme
- * cycler. Both have gone: the times are now the two ends of the daylight arc
- * outside the rim, which says the same thing without a line of text, and the
- * theme belongs with the other preferences rather than wedged into this line.
+ * cycler. Both have gone: the face states both instants by where its shading
+ * turns — and the opt-in daylight arc marks them outright — without a line of
+ * text either way, and the theme belongs with the other preferences rather than
+ * wedged into this line.
  */
-export function LocationPanel({ place, error, hideSource, onOpenPicker }: Props) {
+export function LocationPanel({ place, error, onOpenPicker }: Props) {
   const zone = deviceTimezone();
   // Compares current UTC offsets, not IANA zone names — Oslo and Prague are
   // different zones that share an offset for much of the year, and there is
@@ -47,8 +56,8 @@ export function LocationPanel({ place, error, hideSource, onOpenPicker }: Props)
   return (
     <section className="panel">
       <p className="place">
-        <strong>{place.label}</strong> · {place.lat.toFixed(2)}, {place.lon.toFixed(2)}{' '}
-        {!hideSource && <span className="muted">({SOURCE_TEXT[place.source]})</span>}{' '}
+        Showing <strong>{place.label}</strong> · {place.lat.toFixed(2)}, {place.lon.toFixed(2)}{' '}
+        <span className="muted">({SOURCE_TEXT[place.source]})</span>{' '}
         <button type="button" className="link" onClick={onOpenPicker}>
           change
         </button>

@@ -198,7 +198,10 @@ export const VISUAL = {
 
   /**
    * The band outside the rim spanning sunrise to sunset — what replaced the
-   * "Sunrise 05:31 · Sunset 20:45" line that used to sit under the dial.
+   * "Sunrise 05:31 · Sunset 20:45" line that used to sit under the dial. Opt-in
+   * now rather than on by default: the face's own shading turns at those two
+   * instants, so this restates them rather than being the only record of them.
+   * See `loadShowSunArc` in `settings.ts` for the rest of that argument.
    *
    * It lives in the corridor between the rim's painted outer edge (87.5) and the
    * minute numerals' inner edge (91.5) — the only free band that still reads as
@@ -225,8 +228,8 @@ export const VISUAL = {
    * `visual.test.ts` pins.
    */
   sunArc: {
-    radius: 89.5,
-    width: 1.2,
+    radius: 88.5,
+    width: 0.2,
     color: 'var(--sun-arc)',
   },
 

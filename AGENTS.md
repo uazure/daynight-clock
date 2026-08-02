@@ -15,7 +15,7 @@ Tokyo's clock.
 
 Non-goals: no server, no accounts, no analytics, no network calls at runtime, no precise
 location. Coordinates never leave the device (rounded to ~1 km) and nothing is persisted
-beyond two `localStorage` keys.
+beyond three `localStorage` keys — the chosen place, the theme and the daylight arc.
 
 ## Target platforms
 
@@ -54,8 +54,8 @@ the build itself has no OS dependencies, though development here happens on Wind
 src/lib/         pure logic + colocated *.test.ts (time, sun, lightness, visual, dial,
                  geometry, location, cities, theme, settings)
 src/hooks/       useNow, useDayProfile, useLocation, useTheme, useSettings, useFullscreen
-src/components/  Clock + dial parts (incl. SunArc), LocationPanel, LocationHint, ModalSheet
-                 and its three dialogs (MainMenu, SettingsModal, CityPickerModal)
+src/components/  Clock + dial parts (incl. SunArc), LocationPanel, ModalSheet and its four
+                 sheets (MainMenu, SettingsModal, CityPickerModal, AboutModal)
 src/data/        generated JSON — do not hand-edit; see src/data/README.md
 scripts/         build-cities.mjs, run by hand, never part of the build
 ```
@@ -132,9 +132,11 @@ failure it prevents — the notes here are the index, the code holds the reasoni
 4. **Never request geolocation without an explicit user action, and never without the
    accuracy-and-privacy note visible beside the control that triggers it.** One
    `getCurrentPosition` call site, coarse options only. A stored manual city outranks GPS.
-   The blocking consent modal this rule used to name is gone — it covered the dial before
-   the clock had shown anything, so the first run argued for a permission the reader had no
-   reason to care about yet. `LocationHint` carries the note now, beside its own button.
+   Two things this rule used to name are gone, both for covering the dial to talk about it:
+   a blocking consent modal, then the `LocationHint` note that floated over the lower rim.
+   The first run now asks nothing at all — the panel states which tier answered — and the
+   note travelled with the button to `CityPickerModal`, which holds the only control in the
+   app that can trigger a fix. Move that button and the note moves with it.
 5. **The theme switches page chrome, never the dial.** Night stays dark and day stays
    bright in both themes. Every dial visual — color, size, radius, stroke width — is
    decided in `src/lib/visual.ts` and nowhere else; a literal `hsl()` there is
@@ -170,10 +172,15 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    replaces rather than nests — two stacked scrims double-dim the page and stack two focus
    traps. `.app-content` is `inert` whenever one is up, which is also what stops the burger
    being re-triggered from behind a scrim. `.scrim` needs a `z-index` above `.burger`, or the
-   fixed burger paints straight through the anchored menu sheet.
+   fixed burger paints straight through the anchored menu sheet. Closing undoes *one*
+   opening, not the chain: `pickerReturnsTo` remembers whether the settings sheet opened the
+   picker and sends it back there, and the settings sheet reads the same value to know it is
+   being re-shown and to put focus back on *Change location…*. It is a return target, not a
+   second open overlay — one `Overlay` value still decides what is on screen.
 12. **The dial is sized from whatever height `.panel` leaves**, so nothing in the panel may
-   change height after mount. That is why `LocationHint` floats over the stage and every
-   chooser lives in an overlay. The portrait lift is a `transform` on `.clock` for the same
+   change height after mount. That is why every chooser lives in an overlay, and why the
+   panel's source line is unconditional — it used to be suppressed while a floating hint was
+   up, which made it a line that could arrive a tick after mount. The portrait lift is a `transform` on `.clock` for the same
    reason: moving the dial into an `auto` grid row makes its `height: 100%` indefinite and it
    loses its size entirely. The `max-aspect-ratio` guard on that rule is load-bearing — the
    lift only has letterbox space to spend on a screen much taller than it is wide.

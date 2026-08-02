@@ -5,10 +5,23 @@ import { ModalSheet } from './ModalSheet';
 
 interface Props {
   canLocate: boolean;
+  /**
+   * Whether to offer the way back to the device-timezone guess. False when the
+   * current place *is* a guess, where the reset would land on what is already on
+   * screen — an offer to undo nothing.
+   */
+  canReset: boolean;
   /** Passed straight through — see `ModalSheet`'s own note on the prop. */
   restoreFocusRef?: RefObject<HTMLElement | null>;
   onChooseCity: (city: City) => void;
   onUseDeviceLocation: () => void;
+  onUseTimezone: () => void;
+  /**
+   * Dismisses this sheet — which is not always the same as closing every sheet.
+   * `App` sends it back to the settings sheet when that is what opened the
+   * picker, so every exit from here (Close, Escape, the scrim, and each of the
+   * choices below) returns the reader where they came from.
+   */
   onClose: () => void;
 }
 
@@ -17,7 +30,15 @@ interface Props {
  * it — expanding in the flex column stole height from the clock stage and
  * visibly shrank the dial on every open and keystroke.
  */
-export function CityPickerModal({ canLocate, restoreFocusRef, onChooseCity, onUseDeviceLocation, onClose }: Props) {
+export function CityPickerModal({
+  canLocate,
+  canReset,
+  restoreFocusRef,
+  onChooseCity,
+  onUseDeviceLocation,
+  onUseTimezone,
+  onClose,
+}: Props) {
   const [cities, setCities] = useState<City[] | null>(null);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -41,15 +62,45 @@ export function CityPickerModal({ canLocate, restoreFocusRef, onChooseCity, onUs
       <h2 id="picker-title">Change location</h2>
 
       <div className="picker-body">
+        {/*
+          The note is not decoration: rule 4 is that a geolocation request never
+          happens without the accuracy-and-privacy line visible *beside* the
+          control that triggers it, and this is the only such control left in the
+          app now that the first-run hint that used to carry both is gone. It is
+          the objection someone has at the moment of deciding, so it belongs where
+          the decision is made rather than in a dialog read before it.
+        */}
         {canLocate && (
+          <div className="picker-locate">
+            <button
+              type="button"
+              onClick={() => {
+                onUseDeviceLocation();
+                onClose();
+              }}
+            >
+              Use my location
+            </button>
+            <p className="sheet-note">Rounded to about a kilometre, and it never leaves this device.</p>
+          </div>
+        )}
+
+        {/*
+          The way back to the default, and the only one that asks the browser for
+          nothing — *Use my location* above also clears a chosen city, but at the
+          price of a geolocation fix. Named for what it does rather than "Reset":
+          the zone in the label is what the dial will actually run on, which is
+          the one thing worth knowing before pressing it.
+        */}
+        {canReset && (
           <button
             type="button"
             onClick={() => {
-              onUseDeviceLocation();
+              onUseTimezone();
               onClose();
             }}
           >
-            Use my location
+            Use my timezone ({zone})
           </button>
         )}
 

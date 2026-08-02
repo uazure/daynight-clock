@@ -18,7 +18,6 @@
   --scrim: hsl(220 20% 4% / 0.7);
   --sheet-bg: hsl(220 14% 14%);
   --sheet-shadow: hsl(220 30% 2% / 0.5);
-  --hint-bg: hsl(220 14% 14% / 0.92);
   --border: hsl(220 12% 40%);
   --btn-primary-bg: hsl(220 12% 92%);
   --btn-primary-text: hsl(220 14% 10%);
@@ -53,7 +52,6 @@
     --scrim: hsl(220 20% 10% / 0.35);
     --sheet-bg: hsl(220 14% 99%);
     --sheet-shadow: hsl(220 30% 20% / 0.25);
-    --hint-bg: hsl(220 14% 99% / 0.92);
     --border: hsl(220 12% 62%);
     --btn-primary-bg: hsl(220 14% 15%);
     --btn-primary-text: hsl(220 12% 96%);
@@ -74,7 +72,6 @@
   --scrim: hsl(220 20% 10% / 0.35);
   --sheet-bg: hsl(220 14% 99%);
   --sheet-shadow: hsl(220 30% 20% / 0.25);
-  --hint-bg: hsl(220 14% 99% / 0.92);
   --border: hsl(220 12% 62%);
   --btn-primary-bg: hsl(220 14% 15%);
   --btn-primary-text: hsl(220 12% 96%);
@@ -146,9 +143,6 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* The positioning context for `.hint`, which floats over the dial's lower
-     rim rather than joining the panel — see the note on `.hint`. */
-  position: relative;
 }
 
 /*
@@ -197,68 +191,13 @@ body {
 }
 
 /*
- * The first-run nudge. Floats over the dial's lower rim, absolutely positioned
- * against `.clock-stage`, because the dial is sized from whatever height the
- * panel leaves over: putting this in the panel would resize the clock once
- * when the permission state resolves and again when the note is dismissed.
- *
- * Translucent over a blur so the shading it is sitting on stays readable
- * through it — the note is about that shading being in the wrong place, so
- * hiding it entirely would be perverse.
+ * A `.hint` note used to float over the dial's lower rim on the first run,
+ * absolutely positioned against `.clock-stage`. It is gone, and with it that
+ * element's `position: relative` and the `--hint-bg` token: covering the dial to
+ * explain the dial was the wrong trade, and the footer states the same thing in
+ * space that was already spent. Nothing floats over the stage now — if something
+ * ever needs to again, the positioning context has to come back with it.
  */
-.hint {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(24rem, 100%);
-  /* Asymmetric on the right: the dismiss control sits in that gutter. */
-  padding: 0.7rem 2.1rem 0.7rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  background: var(--hint-bg);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 0.5rem 1.5rem var(--sheet-shadow);
-  text-align: center;
-  font-size: 0.85rem;
-}
-
-.hint-lead {
-  margin: 0;
-  opacity: 0.75;
-}
-
-.hint-actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.7rem;
-  margin: 0.55rem 0 0;
-}
-
-.hint-note {
-  margin: 0.45rem 0 0;
-  font-size: 0.75rem;
-  opacity: 0.6;
-}
-
-.hint-dismiss {
-  position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
-  padding: 0.1rem 0.3rem;
-  border: none;
-  font-size: 0.8rem;
-  line-height: 1;
-  /* Same reasoning as `.burger`: at 0.55 the glyph fell under 4.5:1 on the light
-     page. It stays smaller than the burger because it sits inside a bordered
-     note that already draws the eye. */
-  opacity: 0.7;
-}
-
-.hint-dismiss:hover {
-  opacity: 1;
-}
 
 .scrim {
   position: fixed;
@@ -281,10 +220,10 @@ body {
  */
 .scrim-anchor-start {
   place-items: start;
-  /* Top inset clears the burger itself (0.75 + 2.5rem) plus a hairline gap, so
+  /* Top inset clears the burger itself (0.75), so
      the menu drops *below* the control rather than covering it — which is what
      ties the two together. The other three sides only need the safe area. */
-  padding: calc(3.55rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right))
+  padding: calc(0.75rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right))
     calc(0.75rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
 }
 
@@ -389,7 +328,8 @@ button.link {
  * `:focus-visible` rather than `:focus`, so a mouse click does not ring it.
  */
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
   outline: 2px solid var(--dial-outline);
   outline-offset: 2px;
 }
@@ -480,10 +420,20 @@ input:focus-visible {
  *
  * `appearance: none` is what buys the padding on the right: the native arrow
  * cannot be moved, and at this size it sat hard against the longest option with
- * the whole control shrink-wrapped around it. Only the closed state changes —
- * the option list is still the platform's, and still follows `color-scheme` on
- * `:root`, which is why that declaration is not optional: without it the list is
- * white-on-white in the dark theme.
+ * the whole control shrink-wrapped around it.
+ *
+ * The background is the one place this control cannot copy the `button` rule.
+ * `color-scheme: dark` on `:root` is what makes the platform paint a dark option
+ * list, and it only does so while the author has left the control's own colours
+ * alone; `appearance: none` plus `background: transparent` hands the popup the
+ * select's colours instead, and a transparent one resolves to white — which is
+ * exactly what shipped, a white list carrying the dark theme's near-white ink,
+ * three options that were only visible when highlighted. Naming an opaque
+ * background here (and on `option` below, for the browsers that read it off the
+ * options rather than off the select) is what puts the list back on a surface
+ * its text contrasts with. `--sheet-bg` rather than a new token because the
+ * select only ever appears inside a sheet, so the closed control still reads as
+ * flush with what is behind it, exactly as `transparent` did.
  */
 .settings-select {
   appearance: none;
@@ -491,10 +441,15 @@ input:focus-visible {
   padding: 0.45rem 2rem 0.45rem 0.9rem;
   border: 1px solid var(--border);
   border-radius: 0.4rem;
-  background: transparent;
-  color: inherit;
+  background: var(--sheet-bg);
+  color: var(--text);
   font: inherit;
   cursor: pointer;
+}
+
+.settings-select option {
+  background: var(--sheet-bg);
+  color: var(--text);
 }
 
 /* Radio and checkbox rows: control, then label, on one baseline. */
@@ -538,10 +493,28 @@ input:focus-visible {
   text-align: center;
 }
 .picker-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 0.75rem;
-  justify-items: center;
   margin-top: 0.75rem;
+}
+
+/*
+ * Keeps *Use my location* and the accuracy-and-privacy note under it as one
+ * block: rule 4 requires the note to be beside the control, and a gap-separated
+ * sibling in the column above would read as a footnote about the whole dialog.
+ */
+.picker-locate {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  text-align: center;
+}
+
+.picker-locate .sheet-note {
+  margin: 0;
+  max-width: 22rem;
 }
 .field {
   display: grid;
@@ -593,4 +566,70 @@ input:focus-visible {
 }
 .error {
   color: var(--error);
+}
+
+/*
+ * On a phone a dialog stops being a card over the page and becomes the page.
+ * A centred card at this width is mostly margin, and the one it leaves at the
+ * bottom is where the on-screen keyboard lands the moment the city search takes
+ * focus — the sheet then floats in whatever strip is left. Full-bleed sidesteps
+ * that entirely and matches what every native picker does at this size.
+ *
+ * The burger menu is deliberately exempt: `.scrim-anchor-start` exists to tie
+ * that sheet to the control it drops out of, and a two-item menu filling the
+ * screen would misrepresent it as a page. It is the only anchored sheet, which
+ * is what makes `:not()` a safe way to say "the dialogs".
+ *
+ * The scrim keeps its `place-items` override rather than the sheet taking
+ * `height: 100%`: the sheet is a grid item, so stretching it is the grid's job,
+ * and `100%` of a `place-items: center` track is not the viewport.
+ */
+@media (max-width: 40rem) {
+  .scrim:not(.scrim-anchor-start) {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .scrim:not(.scrim-anchor-start) .sheet {
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+    max-height: none;
+    /* The scrim no longer insets it, so the safe area is the sheet's own to
+       clear — this is the element that now runs under the notch. */
+    padding: calc(1.25rem + env(safe-area-inset-top)) calc(1.25rem + env(safe-area-inset-right))
+      calc(1.25rem + env(safe-area-inset-bottom)) calc(1.25rem + env(safe-area-inset-left));
+    /* Both belong to a card standing on a page. There is no page left to stand
+       on and no edge left to round. */
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* Close sits at the bottom edge, where a thumb already is, instead of
+     following the content up the screen. */
+  .scrim:not(.scrim-anchor-start) .sheet-actions {
+    margin-top: auto;
+    padding-top: 1.25rem;
+  }
+
+  /*
+   * The picker spends the new height on its results: `flex: 1 1 0` gives the
+   * list exactly what is left after the search field and the buttons, and
+   * `min-height: 0` is what lets it shrink below its content so the scrolling
+   * happens inside the list rather than the sheet. The desktop rule's fixed
+   * 12rem is still doing its job there — it stops the dialog resizing on every
+   * keystroke — but here the sheet's height is the viewport's and cannot move,
+   * so the list is free to take it.
+   */
+  .scrim:not(.scrim-anchor-start) .picker-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .scrim:not(.scrim-anchor-start) .results {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+  }
 }
