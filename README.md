@@ -63,11 +63,34 @@ there are days when daylight wraps midnight and it becomes two bands, one at eac
 of the dial. It is **off by default** — the face already says where sunrise and
 sunset are — and switched on in the settings.
 
+## Your own times
+
+Up to five times of your own can be shaded onto the face: a moment, like a
+wake-up, or a stretch of the day, like work — and a stretch may run past midnight.
+They are drawn in one warm accent, the only colour on the dial that is not the
+sun's doing, at four weights that say where you are in your day:
+
+| Weight             | What it is                                       |
+| ------------------ | ------------------------------------------------ |
+| faintest           | a stretch that has finished                      |
+| quiet              | one that has not started yet                     |
+| stronger           | the part of the one in progress already elapsed   |
+| strongest          | the part of it still to come                     |
+
+So the block you are inside visibly shrinks as the day goes on, and the seam
+between its two halves is where the hour hand is. Whichever boundary comes next is
+marked with a crisp line across the band, and the middle of the dial counts down
+to it — *Work ends, in 1h 45m*. After the last one of the day it wraps to the
+first one tomorrow, so it is never blank.
+
+Add them under **Settings → Your times**. Times are the dial's own wall clock, so
+they follow the place you picked along with the hands.
+
 ## Controls
 
 Everything lives behind the burger button in the top-left corner: **Settings** for
-the theme, the daylight arc and the location, **Full screen** where the browser
-supports it, and **What is this?** for the short version of the idea. The footer
+the theme, the daylight arc, your own times and the location, **Full screen** where
+the browser supports it, and **What is this?** for the short version of the idea. The footer
 under the dial names the place, its coordinates and where that guess came from,
 with a `change` link straight to the city picker. Nothing covers the dial on the
 first run; on a phone the dialogs open full screen.

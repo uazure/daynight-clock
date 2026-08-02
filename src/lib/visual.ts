@@ -27,7 +27,10 @@
  *   `hue` on its own retints the gradient and nothing else. A test checks the
  *   literals still agree with it — hue only, because the saturations differ
  *   deliberately (12% for the ramp and the ink, 14% for the hand core and the
- *   rim, all of them measured against the ramp rather than guessed).
+ *   rim, all of them measured against the ramp rather than guessed). One literal
+ *   is on `palette.accentHue` instead, and that exception is pinned to a single
+ *   path by the same test: the reader's markers are the one thing on the dial
+ *   that is not the sun's doing, and hue is what says so.
  *
  * No font family is set anywhere on the dial; the SVG inherits the page's
  * `system-ui` stack from `styles.css`.
@@ -63,7 +66,22 @@ export const VISUAL = {
    * lowest the ramp actually reaches — 0.04 rather than 0). Moving either of
    * those two ramp constants invalidates them just as surely as moving `band`.
    */
-  palette: { hue: 220, saturation: 12, band: { min: 5, max: 96 } },
+  palette: {
+    hue: 220,
+    /**
+     * The one hue on the dial that is not `hue`, and the only thing wearing it
+     * is the reader's own markers — see the `markers` block below for why a
+     * saturated mark is the only kind that survives both ends of the ramp, and
+     * `visual.test.ts` for the allowlist that keeps it to that one use.
+     *
+     * 38° against the base 220° is very nearly opposite it on the wheel, which
+     * is the point: nothing on the face can be mistaken for a marker and no
+     * marker can be mistaken for dial furniture.
+     */
+    accentHue: 38,
+    saturation: 12,
+    band: { min: 5, max: 96 },
+  },
 
   ring: {
     /** Slices overlap in angle so antialiasing leaves no hairline seams. */
@@ -205,22 +223,26 @@ export const VISUAL = {
    *
    * It lives in the corridor between the rim's painted outer edge (87.5) and the
    * minute numerals' inner edge (91.5) — the only free band that still reads as
-   * part of the dial rather than as a detached ring. At width 1.2 it spans
-   * 88.9…90.1, leaving 1.4 units of air on each side, symmetric, and pinned by
-   * `visual.test.ts` against both neighbours' *painted* edges rather than their
-   * nominal radii.
+   * part of the dial rather than as a detached ring. At width 0.2 it spans
+   * 88.4…88.6, which leaves 0.9 units of air inside it and 2.9 outside, and
+   * `visual.test.ts` pins it against both neighbours' *painted* edges rather than
+   * their nominal radii.
    *
-   * **That air is the whole reason `minuteLabels.radius` moved out to 94.** The
-   * first attempt kept the band at 93, which left only 0.8 units either side: at
-   * a 375px viewport that is ~1.4px, and on screen the arc and the rim merged
+   * **That air is the whole reason `minuteLabels.radius` moved out to 94.** An
+   * earlier attempt kept the band at 93, which left only 0.8 units either side:
+   * at a 375px viewport that is ~1.4px, and on screen the arc and the rim merged
    * into a single doubled stroke that read as a rendering artefact rather than as
    * a mark. Widening the gap fixed it where retuning the colour could not.
    *
-   * Slightly heavier than the 1-unit rim so it is not mistaken for one, but not
-   * by much — the separation now does that work. Its ends are radial faces rather
-   * than round caps, so each marks an exact minute; a round cap would smear each
-   * end by half the width, about three minutes of dial arc, which is the one
-   * thing this element exists to state precisely.
+   * **A hairline, one fifth the rim's weight**, which is the opposite of where
+   * this started: it was 1.2 units, *heavier* than the rim so as not to be
+   * mistaken for one, and at that weight it read as a second silhouette anyway.
+   * Going the other way works because weight was never the signal that separates
+   * the two — the air between them is, and `--sun-arc` is a step brighter than
+   * the ink around it. Keep it finer than the rim; the way back is more
+   * separation, not more ink. Its ends are radial faces rather than round caps,
+   * so each marks an exact minute; a round cap would smear each end by half the
+   * width, which is the one thing this element exists to state precisely.
    *
    * Themed for the same reason `minuteLabels.fill` is: out here the backdrop is
    * the page, not the day/night gradient, so a fixed tone would fight one of the
@@ -231,6 +253,92 @@ export const VISUAL = {
     radius: 88.5,
     width: 0.2,
     color: 'var(--sun-arc)',
+  },
+
+  /**
+   * The reader's own times: up to five moments or intervals, tinting the face
+   * itself rather than taking a ring of their own.
+   *
+   * **Why the band is 43…59 and not the whole face.** Everything the dial reads
+   * *against* the shading stays outside it: the hour numerals start at 59.5
+   * (`hourLabels.radius - size / 2`), and the ticks, the rim and both ink flips
+   * live further out still. So no numeral, tick or rim ever has a tinted
+   * backdrop, and every contrast ratio measured for them — here and beside
+   * `--dial-outline` in `styles.css` — survives a marker being drawn under them,
+   * which a full-face wedge would have invalidated at a stroke. The inner edge
+   * is set by the readout below: 43 clears the corners of its text box.
+   *
+   * **Why a saturated hue rather than a tone.** A tint has to be visible over
+   * both ends of a ramp that runs L96% to L5%, and no single lightness can be:
+   * dark over daylight is light over night and vice versa. The face is a
+   * *desaturated* scale, so an accent separates by hue instead, which works
+   * identically at both ends. That is the whole argument for `palette.accentHue`.
+   *
+   * **Opacity carries emphasis, not colour.** One accent for all five markers —
+   * they are told apart by where they sit and by the readout naming the next
+   * one, not by a palette the reader has to learn. Past spans recede, upcoming
+   * ones sit mid-way, the one in progress is loudest, and `remaining` — the
+   * stretch from *now* to the end of an interval in progress — is louder still,
+   * because a block visibly shrinking is the answer to "how much of this is
+   * left".
+   *
+   * The thin marks need their own scale: a 1.2-unit dash at 0.1 opacity is
+   * invisible where a 16-unit wedge at 0.1 is a wash, so `moment` repeats the
+   * three phases at values of its own rather than borrowing `wedge`'s.
+   */
+  markers: {
+    inner: 43,
+    outer: 59,
+    /**
+     * Lightness 60% rather than the 50% that would be the hue's most saturated
+     * point: the tint has to survive the *night* side of the ramp too, where a
+     * mid-lightness accent at these opacities went nearly black. Raising it costs
+     * almost nothing over daylight, because there the mark is carried by hue
+     * rather than by contrast.
+     */
+    accent: 'hsl(38 90% 60%)',
+    /**
+     * `active` is only the *elapsed* part of a block in progress; `remaining` is
+     * the rest of it, and the two are separate wedges rather than one under the
+     * other — see `MarkerWedges`, which explains why stacking them would paint an
+     * opacity neither of these numbers names.
+     */
+    wedge: { past: 0.13, upcoming: 0.26, active: 0.34, remaining: 0.62 },
+    /** A moment has no arc to sweep, so it draws as a radial dash. */
+    moment: { width: 1.2, past: 0.4, upcoming: 0.8, active: 1 },
+    /**
+     * The next boundary, drawn at full strength across the band. Same reasoning
+     * as `sunArc`'s radial faces: the edge states the instant precisely, the
+     * fill only states the shape of the day.
+     */
+    boundary: { width: 0.9 },
+    /**
+     * The countdown at the hub — two lines, centred, in the disc the wedge band
+     * leaves free.
+     *
+     * Text on the face cannot lean on the shading the way the numerals do: the
+     * ring's slices all converge at the centre, so a glyph here sits over a fan
+     * of every lightness in the day at once and no fill can be chosen against
+     * it. It is stroked with a halo underneath instead (`paint-order: stroke`),
+     * so the glyph reads against its own outline and the backdrop stops
+     * mattering — the mechanism `hourLabels.outlineWidth` documents and keeps at
+     * 0 precisely so it is available when something needs it. This needs it.
+     *
+     * `halfWidth`/`top`/`bottom` are the box the text must stay inside, and they
+     * are what sets `inner` above: the box's bottom corners reach
+     * `√(28² + 32²) ≈ 42.5`, so the band starts at 43. `visual.test.ts` pins
+     * that. The character cap that keeps the *label* inside the same box is
+     * `MAX_LABEL_LENGTH` in `markers.ts` — no test can measure SVG text.
+     */
+    readout: {
+      halfWidth: 28,
+      top: 10,
+      bottom: 32,
+      halo: 'hsl(220 14% 10%)',
+      haloWidth: 1.4,
+      label: { y: 19, size: 6, weight: 500 },
+      detail: { y: 29.5, size: 9.5, weight: 600 },
+    },
   },
 
   hands: {

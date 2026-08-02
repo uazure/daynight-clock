@@ -1,9 +1,12 @@
+import { type Marker, nextBoundary, readoutLines } from '../lib/markers';
 import type { DayProfile, SunEvents } from '../lib/sun';
-import { formatMinutesOfDay } from '../lib/time';
+import { formatMinutesOfDay, hoursSinceMidnightInZone } from '../lib/time';
 import { VISUAL } from '../lib/visual';
 import { DayNightRing } from './DayNightRing';
 import { Hands } from './Hands';
 import { HourLabels } from './HourLabels';
+import { MarkerReadout } from './MarkerReadout';
+import { MarkerWedges } from './MarkerWedges';
 import { MinuteLabels } from './MinuteLabels';
 import { SunArc } from './SunArc';
 import { Ticks } from './Ticks';
@@ -23,6 +26,8 @@ interface Props {
    * has something to draw it from.
    */
   events: SunEvents | null;
+  /** The reader's own times. Empty is the off state, for the same reason. */
+  markers: Marker[];
 }
 
 /**
@@ -48,17 +53,34 @@ function sunSummary({ sunrise, sunset, polar }: SunEvents): string {
   ].join('');
 }
 
-export function Clock({ now, profile, timeZone, events }: Props) {
+export function Clock({ now, profile, timeZone, events, markers }: Props) {
   const time = now.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
     timeZone,
   });
-  const label = `24-hour day and night clock, ${time}${events ? sunSummary(events) : ''}`;
+  // Whole minutes, and computed once here rather than inside each child: it is
+  // what both marker layers are keyed on, so passing an integer is what keeps
+  // them re-rendering once a minute instead of on every two-second tick of
+  // `useNow`.
+  const minuteOfDay = Math.floor(hoursSinceMidnightInZone(now, timeZone) * 60);
+  const next = nextBoundary(markers, minuteOfDay);
+  // The readout is drawn inside the `<svg>`, and this element is `role="img"`, so
+  // nothing in it is ever announced. Same reason the sunrise and sunset times are
+  // in this string: the accessible name is the only route out.
+  const spoken = next ? readoutLines(next) : null;
+  const upNext = spoken ? `, ${spoken.label} ${spoken.detail}` : '';
+  const label = `24-hour day and night clock, ${time}${events ? sunSummary(events) : ''}${upNext}`;
 
   return (
     <svg className="clock" viewBox={viewBox} role="img" aria-label={label}>
       <DayNightRing lightness={profile.lightness} />
+      {/*
+        On the face, under everything the face is read *against*: the band stops
+        at 59, inside the hour numerals, so no numeral, tick or rim ever sits on
+        a tint and every contrast ratio measured for them still holds.
+      */}
+      <MarkerWedges markers={markers} minuteOfDay={minuteOfDay} next={next} />
       <Ticks lightness={profile.lightness} />
       {/*
         The dial's silhouette, painted after the ticks so their round caps
@@ -79,6 +101,11 @@ export function Clock({ now, profile, timeZone, events }: Props) {
       {events && <SunArc events={events} />}
       <HourLabels lightness={profile.lightness} />
       <MinuteLabels />
+      {/*
+        Before the hands rather than after, so a hand passes over the countdown
+        instead of being cut in half by it — see `MarkerReadout` on that trade.
+      */}
+      {next && <MarkerReadout next={next} />}
       <Hands now={now} timeZone={timeZone} />
     </svg>
   );

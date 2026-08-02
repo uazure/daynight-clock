@@ -4,10 +4,12 @@ import { CityPickerModal } from './components/CityPickerModal';
 import { Clock } from './components/Clock';
 import { LocationPanel } from './components/LocationPanel';
 import { MainMenu } from './components/MainMenu';
+import { MarkersModal } from './components/MarkersModal';
 import { SettingsModal } from './components/SettingsModal';
 import { useDayProfile } from './hooks/useDayProfile';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useLocation } from './hooks/useLocation';
+import { useMarkers } from './hooks/useMarkers';
 import { useNow } from './hooks/useNow';
 import { useSettings } from './hooks/useSettings';
 import { deviceTimezone, isGuessed } from './lib/location';
@@ -21,26 +23,34 @@ import { sunEvents } from './lib/sun';
  * overlay closes whatever was there, so the menu handing off to the settings
  * sheet is a replace, and so is the settings sheet handing off to the picker.
  */
-type Overlay = null | 'menu' | 'settings' | 'picker' | 'about';
+type Overlay = null | 'menu' | 'settings' | 'picker' | 'about' | 'markers';
+
+/** The sheets the settings sheet can open, and return from. */
+type SettingsChild = Extract<Overlay, 'picker' | 'markers'>;
 
 export default function App() {
   const location = useLocation();
   const now = useNow();
   const fullscreen = useFullscreen();
   const [showSunArc, setShowSunArc] = useSettings();
+  const [markers, setMarkers] = useMarkers();
   const [overlay, setOverlay] = useState<Overlay>(null);
   /**
-   * Where the picker goes when it closes: back to the settings sheet if that is
-   * what opened it, and away entirely if the footer's `change` link did.
+   * Which sheet the settings sheet opened, if it opened one — and by implication
+   * where that sheet goes when it closes: back to the settings sheet, rather than
+   * away entirely.
    *
    * Closing a dialog has to undo the *one* opening it belongs to. Every sheet
    * closing to `null` meant Close on the picker also took the settings sheet
    * with it, which reads as the app dismissing a whole conversation because you
    * finished a sentence. This is a return target, not a second open overlay —
-   * the one-value invariant above still holds, and only the picker has anywhere
-   * to return to, since it is the only sheet another sheet opens.
+   * the one-value invariant above still holds.
+   *
+   * It also survives the child closing, so `SettingsModal` can land focus on
+   * whichever of its buttons opened that child rather than at the top of a dialog
+   * the reader was in the middle of. `close` is what finally clears it.
    */
-  const [pickerReturnsTo, setPickerReturnsTo] = useState<Extract<Overlay, 'settings'> | null>(null);
+  const [settingsChild, setSettingsChild] = useState<SettingsChild | null>(null);
   // `tz` is absent only for fallback places and pre-tz stored overrides;
   // the device zone is the only sensible reading of "local time" there.
   const timeZone = location.place.tz ?? deviceTimezone();
@@ -75,19 +85,25 @@ export default function App() {
    */
   const openPicker = () => {
     overlayOrigin.current = null;
-    setPickerReturnsTo(null);
+    setSettingsChild(null);
     setOverlay('picker');
   };
   const close = () => {
     setOverlay(null);
-    setPickerReturnsTo(null);
+    setSettingsChild(null);
+  };
+  /** Opened from the settings sheet, so this is a handoff, not an entry point:
+   *  `overlayOrigin` is left pointing at whatever started the chain. */
+  const openFromSettings = (child: SettingsChild) => () => {
+    setSettingsChild(child);
+    setOverlay(child);
   };
   /**
-   * Deliberately leaves `pickerReturnsTo` alone: `SettingsModal` reads it in the
+   * Deliberately leaves `settingsChild` alone: `SettingsModal` reads it in the
    * same render to know it is being shown again rather than opened afresh, and
    * `close` clears it when the chain actually ends.
    */
-  const closePicker = () => (pickerReturnsTo === null ? close() : setOverlay(pickerReturnsTo));
+  const closeChild = () => (settingsChild === null ? close() : setOverlay('settings'));
 
   return (
     <main className="app">
@@ -127,8 +143,10 @@ export default function App() {
             timeZone={timeZone}
             // `null` rather than a flag, so the Clock never learns that a
             // setting exists — it draws the arc when it is given something to
-            // draw it from.
+            // draw it from. The markers are the same idea: an empty list is the
+            // off state.
             events={showSunArc ? events : null}
+            markers={markers}
           />
         </div>
 
@@ -156,17 +174,20 @@ export default function App() {
         <SettingsModal
           place={location.place}
           showSunArc={showSunArc}
-          // Set only while this sheet is the picker's return target, which is
-          // true exactly when the picker has just closed back into it.
-          returningFromPicker={pickerReturnsTo === 'settings'}
+          markerCount={markers.length}
+          // Set only while one of this sheet's own children is open or has just
+          // closed back into it, which is what makes it a focus target.
+          returningFrom={settingsChild}
           restoreFocusRef={overlayOrigin}
           onShowSunArcChange={setShowSunArc}
-          onOpenPicker={() => {
-            setPickerReturnsTo('settings');
-            setOverlay('picker');
-          }}
+          onOpenPicker={openFromSettings('picker')}
+          onOpenMarkers={openFromSettings('markers')}
           onClose={close}
         />
+      )}
+
+      {overlay === 'markers' && (
+        <MarkersModal markers={markers} restoreFocusRef={overlayOrigin} onChange={setMarkers} onClose={closeChild} />
       )}
 
       {overlay === 'picker' && (
@@ -179,7 +200,7 @@ export default function App() {
           onChooseCity={location.chooseCity}
           onUseDeviceLocation={location.useDeviceLocation}
           onUseTimezone={location.useTimezoneLocation}
-          onClose={closePicker}
+          onClose={closeChild}
         />
       )}
     </main>

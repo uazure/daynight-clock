@@ -153,6 +153,51 @@ export function formatMinutesOfDay(minutes: number): string {
   return `${hour}:${String(total % 60).padStart(2, '0')}`;
 }
 
+/**
+ * The inverse of `formatMinutesOfDay` for the `HH:MM` an `<input type="time">`
+ * yields; `null` for anything else, empty string included.
+ *
+ * Strict on purpose. An empty time input is the marker editor's way of saying
+ * "this is a moment, not an interval", and a lenient parser that read `''` as
+ * midnight would turn every unfinished row into an interval ending at 00:00.
+ * Seconds are accepted and dropped: the control emits `HH:MM:SS` when a `step`
+ * finer than a minute is in play, and the dial cannot resolve them anyway.
+ */
+export function minutesFromTimeValue(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+/**
+ * A span of minutes as `45m`, `1h 45m` or `2h` — the countdown half of the
+ * marker readout, and deliberately not `HH:MM`: "1h 45m" cannot be misread as a
+ * time of day, which "01:45" sitting on a clock face certainly can.
+ *
+ * Whole hours drop the minutes rather than reading `2h 0m`. Negative input is
+ * clamped to zero; the caller that has a real elapsed time to show handles the
+ * zero case with a word ("now") instead.
+ */
+export function formatDuration(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+
+  if (hours === 0) {
+    return `${rest}m`;
+  }
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
 /** Fractional hours since `timeZone`'s midnight, for placing the hands. */
 export function hoursSinceMidnightInZone(now: Date, timeZone: string): number {
   const wall = wallClockInZone(now, timeZone);

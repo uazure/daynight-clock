@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   dateKeyInZone,
+  formatDuration,
   formatMinutesOfDay,
   hoursSinceMidnightInZone,
   instantForZoneWallClock,
+  minutesFromTimeValue,
   wallClockInZone,
   zoneOffsetMinutes,
 } from './time';
@@ -183,5 +185,60 @@ describe('formatMinutesOfDay', () => {
     // the same position.
     expect(formatMinutesOfDay(1439.7)).toBe('00:00');
     expect(formatMinutesOfDay(1440)).toBe('00:00');
+  });
+});
+
+describe('minutesFromTimeValue', () => {
+  it('reads what a time input holds', () => {
+    expect(minutesFromTimeValue('00:00')).toBe(0);
+    expect(minutesFromTimeValue('09:05')).toBe(545);
+    expect(minutesFromTimeValue('23:59')).toBe(1439);
+  });
+
+  it('round-trips through formatMinutesOfDay', () => {
+    // The marker editor relies on the pair: minutes out to fill the control,
+    // minutes back in when it changes.
+    for (const minutes of [0, 1, 545, 720, 1439]) {
+      expect(minutesFromTimeValue(formatMinutesOfDay(minutes))).toBe(minutes);
+    }
+  });
+
+  it('accepts the seconds some browsers emit, and drops them', () => {
+    expect(minutesFromTimeValue('09:05:00')).toBe(545);
+    expect(minutesFromTimeValue('09:05:30.500')).toBe(545);
+  });
+
+  it('refuses an empty value rather than reading it as midnight', () => {
+    // An empty second time input is how the editor says "this is a moment, not
+    // an interval". Read as 0 it would turn every unfinished row into an
+    // interval ending at midnight.
+    expect(minutesFromTimeValue('')).toBeNull();
+  });
+
+  it('refuses anything that is not a time', () => {
+    for (const value of ['9', '9:5', '24:00', '12:60', 'noon', '12:00pm', '-1:00']) {
+      expect(minutesFromTimeValue(value), value).toBeNull();
+    }
+  });
+});
+
+describe('formatDuration', () => {
+  it('counts minutes under the hour', () => {
+    expect(formatDuration(0)).toBe('0m');
+    expect(formatDuration(45)).toBe('45m');
+  });
+
+  it('drops the minutes on a whole hour', () => {
+    expect(formatDuration(60)).toBe('1h');
+    expect(formatDuration(720)).toBe('12h');
+  });
+
+  it('names both parts otherwise', () => {
+    expect(formatDuration(105)).toBe('1h 45m');
+    expect(formatDuration(1439)).toBe('23h 59m');
+  });
+
+  it('clamps a negative span to nothing', () => {
+    expect(formatDuration(-5)).toBe('0m');
   });
 });

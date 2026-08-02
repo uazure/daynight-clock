@@ -4,7 +4,7 @@ import { altitudeToLightness, FULL_DARK_DEG, FULL_LIGHT_DEG, HORIZON_DEG, NIGHT_
 import { MINUTES_PER_SAMPLE, SAMPLES_PER_DAY } from './sun';
 import { VISUAL } from './visual';
 
-const { canvas, face, palette, ring, ticks, hourLabels, minuteLabels, sunArc, hands } = VISUAL;
+const { canvas, face, palette, ring, ticks, hourLabels, minuteLabels, sunArc, markers, hands } = VISUAL;
 
 /** Normalises a dial angle onto 0..360 so the two scales can be compared. */
 const turn = (deg: number) => ((deg % 360) + 360) % 360;
@@ -54,6 +54,8 @@ describe('the dial fits together', () => {
     for (const radius of [
       ...tiers.map((tier) => tier.inner),
       hourLabels.radius,
+      markers.inner,
+      markers.outer,
       hands.hour.length,
       hands.minute.length,
       hands.hub.radius,
@@ -97,6 +99,64 @@ describe('the dial fits together', () => {
     // Each slice is stroked with its own fill, so the gradient bleeds half that
     // width past r=face. Wider than the rim and the fill spills outside it.
     expect(strokeReach(ring.sliceStrokeWidth)).toBeLessThanOrEqual(strokeReach(face.rim.width));
+  });
+});
+
+describe("the reader's markers", () => {
+  it('keeps the wedge band inside the hour numerals it must not tint', () => {
+    // The load-bearing one. Everything the dial is read *against* — the
+    // numerals, the ticks, the rim, both ink flips — sits outside this band, so
+    // no marker can ever be part of the backdrop one of them was measured
+    // against. Let the band past the numerals' glyph edge and every contrast
+    // ratio in this file and in styles.css becomes a claim about an untinted
+    // face that is no longer true.
+    expect(markers.inner).toBeLessThan(markers.outer);
+    expect(markers.outer).toBeLessThanOrEqual(hourLabels.radius - glyphReach(hourLabels.size, hourLabels.outlineWidth));
+  });
+
+  it('clears the corners of the readout box, not just its radius', () => {
+    // The readout is a rectangle and the band is a circle, so the constraint is
+    // the box's *corners*: measured against `bottom` alone the band would start
+    // at 32 and cut through the ends of the longest line.
+    const corner = Math.hypot(markers.readout.halfWidth, markers.readout.bottom);
+    expect(markers.inner).toBeGreaterThanOrEqual(corner);
+    expect(markers.readout.top).toBeLessThan(markers.readout.bottom);
+  });
+
+  it('leaves the hub and the counterweights out of the readout box', () => {
+    // The tails' round caps paint a couple of units past the hub disc — see
+    // `hands.tail` — so clearing `hub.radius` alone would put the first line of
+    // text on top of them.
+    const tailReach = hands.tail + strokeReach(hands.hour.width);
+    expect(markers.readout.top).toBeGreaterThan(Math.max(hands.hub.radius + hands.hub.haloWidth, tailReach));
+  });
+
+  it('orders the four wedge opacities the way the eye reads them', () => {
+    // Past recedes, upcoming sits mid-way, the one in progress is louder, and
+    // the part of it still to come is loudest: the ranking *is* the readout, so
+    // a mis-sorted pair would say the day was the other way round.
+    const { past, upcoming, active, remaining } = markers.wedge;
+    expect(past).toBeLessThan(upcoming);
+    expect(upcoming).toBeLessThan(active);
+    expect(active).toBeLessThan(remaining);
+    expect(remaining).toBeLessThanOrEqual(1);
+  });
+
+  it('ranks the moment dashes the same way, on their own scale', () => {
+    // Same order, higher values: a 1.2-unit dash at the wedges' opacities is
+    // invisible where a 16-unit wedge is a wash, which is why these are separate
+    // numbers rather than a reuse.
+    expect(markers.moment.past).toBeLessThan(markers.moment.upcoming);
+    expect(markers.moment.upcoming).toBeLessThan(markers.moment.active);
+    expect(markers.moment.active).toBeLessThanOrEqual(1);
+    expect(markers.moment.past).toBeGreaterThan(markers.wedge.past);
+  });
+
+  it('draws the next boundary as the crispest mark in the band', () => {
+    // It is the one thing the countdown is counting down to, so nothing else
+    // among the markers may out-weigh it.
+    expect(markers.boundary.width).toBeGreaterThanOrEqual(markers.moment.width * 0.5);
+    expect(markers.readout.detail.size).toBeGreaterThan(markers.readout.label.size);
   });
 });
 
@@ -166,18 +226,25 @@ describe('the two numeral scales', () => {
 
   it('threads the daylight arc between the rim and the minute band', () => {
     // Painted edges on both sides, for the same reason the test above uses
-    // them: the arc has ~3 units of corridor to live in and 0.8 of air to
-    // either side, so a change measured against nominal radii would look
+    // them: the arc has ~4 units of corridor to live in and under a unit of air
+    // on the rim side, so a change measured against nominal radii would look
     // fine here and collide on screen.
     expect(sunArc.radius - strokeReach(sunArc.width)).toBeGreaterThan(face.radius + strokeReach(face.rim.width));
     expect(sunArc.radius + strokeReach(sunArc.width)).toBeLessThan(minuteLabels.radius - glyphReach(minuteLabels.size));
   });
 
-  it('draws the daylight arc heavier than the rim it sits beside', () => {
-    // Matching the rim's weight 0.8 units away from it reads as a second
-    // silhouette rather than as its own mark. Length is not available as a
-    // signal here — the arc's length is the day — so weight is the only one.
-    expect(sunArc.width).toBeGreaterThan(face.rim.width);
+  it('keeps the daylight arc a hairline finer than the rim, and off it', () => {
+    // This assertion has been both ways round. The arc was once *heavier* than
+    // the rim, on the argument that matching its weight a unit away would read
+    // as a second silhouette — and at 1.2 units it read as one regardless.
+    // Weight was never what separates them: the air between them is, and
+    // `--sun-arc` sits a step brighter than the ink around it. So the arc is a
+    // hairline now, and what has to be pinned is that it stays one and stays
+    // clear of the rim. The way back, if it ever needs to be louder, is more
+    // separation rather than more ink.
+    expect(sunArc.width).toBeLessThan(face.rim.width);
+    const air = sunArc.radius - strokeReach(sunArc.width) - (face.radius + strokeReach(face.rim.width));
+    expect(air).toBeGreaterThanOrEqual(0.5);
   });
 
   it('gives every anchor tick a numeral to anchor', () => {
@@ -204,15 +271,35 @@ describe('the dial palette', () => {
     expect(themed.map((leaf) => leaf.path).sort()).toEqual(['face.rim.color', 'minuteLabels.fill', 'sunArc.color']);
   });
 
-  it('keeps every literal colour on the palette hue', () => {
+  it('keeps every literal colour on the palette hue, bar the pinned accent', () => {
     // Saturation deliberately varies — 12% for the ramp and the ink, 14% for
     // the hand core — but a stray hue would break the monochrome scale. Matches
     // `hsla(` as well as `hsl(`, so a change of spelling cannot dodge the check.
     const literals = colours.filter((leaf) => String(leaf.value).startsWith('hsl'));
     expect(literals.length).toBeGreaterThan(0);
     for (const { path, value } of literals) {
-      expect(hueOf(String(value)), path).toBe(palette.hue);
+      const allowed = path === 'markers.accent' ? palette.accentHue : palette.hue;
+      expect(hueOf(String(value)), path).toBe(allowed);
     }
+  });
+
+  it("spends the accent hue on the reader's markers and nothing else", () => {
+    // Exact equality, like the themed-token check above and for the same reason:
+    // the accent exists to say "this mark is yours, not the sun's", and it can
+    // only say that while it is the one thing wearing it. A second use has to be
+    // argued for here first.
+    const accented = colours
+      .filter((leaf) => String(leaf.value).startsWith('hsl') && hueOf(String(leaf.value)) === palette.accentHue)
+      .map((leaf) => leaf.path);
+    expect(accented).toEqual(['markers.accent']);
+  });
+
+  it('puts the accent well away from the palette hue on the wheel', () => {
+    // Close hues read as a bad match rather than as a distinction, and the
+    // distinction is the entire job: half a wheel apart, nothing on the face can
+    // be mistaken for a marker.
+    const apart = Math.abs(palette.accentHue - palette.hue) % 360;
+    expect(Math.min(apart, 360 - apart)).toBeGreaterThan(120);
   });
 
   it('maps lightness onto an ordered band inside HSL range', () => {
