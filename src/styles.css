@@ -474,6 +474,71 @@ select:focus-visible {
   opacity: 0.6;
 }
 
+/*
+ * The two hints that sit *under* their own control rather than beside a checkbox,
+ * so the 1.5rem indent `.settings-hint` carries for a checkbox row would leave
+ * them hanging off nothing.
+ */
+.markers-hint,
+.markers-lead {
+  margin-left: 0;
+}
+
+.markers-lead {
+  margin-bottom: 0.75rem;
+}
+
+/*
+ * One marker per row, and always two lines: name above, then the two times and
+ * the remove control. A single line of four controls needs ~20rem, and the sheet
+ * has about 17rem to give on a 375px phone — so the wrap is the layout rather
+ * than a fallback, and the row reads the same at every width.
+ */
+.marker-rows {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.marker-row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.marker-times {
+  display: flex;
+  align-items: center;
+  /* Wraps rather than overflows where a time control is rendered wide — the
+     native picker's own width is the platform's business, not ours. */
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Matches `.field input` rather than the `button` rule: these are text fields
+   sitting in a form, not controls sitting beside a button. */
+.marker-row input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+/* Pushed to the far end of the row, away from the two times it would otherwise
+   read as a third field of. */
+.marker-remove {
+  margin-left: auto;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.marker-remove:hover {
+  opacity: 1;
+}
+
 /* Not indented like `.settings-hint`: there is no control to its left. */
 .settings-place {
   margin: 0 0 0.5rem;

@@ -1,24 +1,28 @@
 import { type RefObject, useRef } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import type { Place } from '../lib/location';
+import { MAX_MARKERS } from '../lib/markers';
 import type { ThemePreference } from '../lib/theme';
 import { ModalSheet } from './ModalSheet';
 
 interface Props {
   place: Place;
   showSunArc: boolean;
+  /** How many markers exist, so the row can say so without holding the list. */
+  markerCount: number;
   /**
-   * Set when this sheet is on screen again because the city picker it opened has
-   * just closed, rather than because it was opened from the menu. Focus then
-   * lands on *Change location…* instead of on the first control in the sheet:
-   * the sheet is remounted either way, so without this the reader is returned to
-   * the top of a dialog they were in the middle of.
+   * Which of this sheet's own dialogs it opened, when this sheet is on screen
+   * again because that dialog has just closed rather than because it was opened
+   * from the menu. Focus then lands on the button that opened it instead of on
+   * the first control in the sheet: the sheet is remounted either way, so without
+   * this the reader is returned to the top of a dialog they were in the middle of.
    */
-  returningFromPicker?: boolean;
+  returningFrom?: 'picker' | 'markers' | null;
   /** Passed straight through — see `ModalSheet`'s own note on the prop. */
   restoreFocusRef?: RefObject<HTMLElement | null>;
   onShowSunArcChange: (next: boolean) => void;
   onOpenPicker: () => void;
+  onOpenMarkers: () => void;
   onClose: () => void;
 }
 
@@ -56,22 +60,27 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
 export function SettingsModal({
   place,
   showSunArc,
-  returningFromPicker,
+  markerCount,
+  returningFrom,
   restoreFocusRef,
   onShowSunArcChange,
   onOpenPicker,
+  onOpenMarkers,
   onClose,
 }: Props) {
   const [preference, setPreference] = useTheme();
   const changeLocationRef = useRef<HTMLButtonElement>(null);
+  const markersRef = useRef<HTMLButtonElement>(null);
+  const opener = { picker: changeLocationRef, markers: markersRef };
 
   return (
     <ModalSheet
       labelledBy="settings-title"
       onClose={onClose}
-      // Only on the way back from the picker; otherwise the sheet's own default
-      // (its first focusable, the theme select) is the right landing place.
-      initialFocusRef={returningFromPicker ? changeLocationRef : undefined}
+      // Only on the way back from one of the two sheets this one opens;
+      // otherwise the sheet's own default (its first focusable, the theme
+      // select) is the right landing place.
+      initialFocusRef={returningFrom ? opener[returningFrom] : undefined}
       restoreFocusRef={restoreFocusRef}
       dismissOnScrim
     >
@@ -121,6 +130,24 @@ export function SettingsModal({
         </label>
         <p className="settings-hint" id="sun-arc-hint">
           A band outside the rim, from sunrise to sunset.
+        </p>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-legend">Your times</h3>
+        {/*
+          The count is the state of this row: "none yet" is the off state, so
+          there is no switch beside it to be inconsistent with.
+        */}
+        <p className="settings-place">
+          {markerCount === 0 ? 'None yet' : `${markerCount} of ${MAX_MARKERS} on the dial`}
+        </p>
+        <button ref={markersRef} type="button" aria-describedby="markers-hint" onClick={onOpenMarkers}>
+          {markerCount === 0 ? 'Add your times…' : 'Edit your times…'}
+        </button>
+        <p className="settings-hint markers-hint" id="markers-hint">
+          Your own moments and stretches of the day — a wake-up, the end of work — shaded onto the face, with a
+          countdown to the next one at the centre.
         </p>
       </div>
 

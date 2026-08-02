@@ -11,11 +11,13 @@ A 24-hour analog clock. One turn of the hour hand is one day, noon at the top an
 at the bottom, and the dial face is shaded by the sun's real altitude at the selected
 place — daylight above +6°, night below -6°, an eased transition between. Both the shading
 and the hands run on that place's own IANA time zone, so picking Tokyo from Prague shows
-Tokyo's clock.
+Tokyo's clock. The reader can also shade up to five times of their own onto the face — a
+wake-up, the hours of work — with a countdown at the hub to whichever boundary comes next.
 
 Non-goals: no server, no accounts, no analytics, no network calls at runtime, no precise
 location. Coordinates never leave the device (rounded to ~1 km) and nothing is persisted
-beyond three `localStorage` keys — the chosen place, the theme and the daylight arc.
+beyond four `localStorage` keys — the chosen place, the theme, the daylight arc and the
+reader's own times.
 
 ## Target platforms
 
@@ -52,10 +54,12 @@ the build itself has no OS dependencies, though development here happens on Wind
 
 ```
 src/lib/         pure logic + colocated *.test.ts (time, sun, lightness, visual, dial,
-                 geometry, location, cities, theme, settings)
-src/hooks/       useNow, useDayProfile, useLocation, useTheme, useSettings, useFullscreen
-src/components/  Clock + dial parts (incl. SunArc), LocationPanel, ModalSheet and its four
-                 sheets (MainMenu, SettingsModal, CityPickerModal, AboutModal)
+                 geometry, location, cities, theme, settings, markers)
+src/hooks/       useNow, useDayProfile, useLocation, useTheme, useSettings, useMarkers,
+                 useFullscreen
+src/components/  Clock + dial parts (incl. SunArc, MarkerWedges, MarkerReadout),
+                 LocationPanel, ModalSheet and its five sheets (MainMenu, SettingsModal,
+                 CityPickerModal, MarkersModal, AboutModal)
 src/data/        generated JSON — do not hand-edit; see src/data/README.md
 scripts/         build-cities.mjs, run by hand, never part of the build
 ```
@@ -65,7 +69,7 @@ scripts/         build-cities.mjs, run by hand, never part of the build
 ```bash
 npm install
 npm run dev         # http://localhost:5173
-npm test            # vitest run — 153 tests, ~1.5s
+npm test            # vitest run — 219 tests, ~4s
 npm run typecheck   # tsc -b
 npm run lint        # biome check — lint, format and import order, read-only
 npm run lint:fix    # biome check --write — applies all three
@@ -126,9 +130,11 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    Downstream code must not reach for the device zone or a bare `Date#getHours` — a +5:45
    zone moves even the minute hand.
 3. **Nothing in `src/lib/` imports React or touches the DOM**, except `location.ts`
-   (`navigator`, `localStorage`) and `theme.ts` (`localStorage`). Every storage call is
-   wrapped in `try`/`catch`: Safari private browsing throws on `setItem`, and that must
-   degrade to an in-memory session rather than break a control.
+   (`navigator`, `localStorage`), `theme.ts` and `settings.ts` (`localStorage`). Every
+   storage call is wrapped in `try`/`catch`: Safari private browsing throws on `setItem`,
+   and that must degrade to an in-memory session rather than break a control. `settings.ts`
+   validates nothing itself — the shape of a stored marker is `markers.ts`' business, which
+   is what keeps that module pure and testable.
 4. **Never request geolocation without an explicit user action, and never without the
    accuracy-and-privacy note visible beside the control that triggers it.** One
    `getCurrentPosition` call site, coarse options only. A stored manual city outranks GPS.
@@ -143,6 +149,11 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    theme-independent, and the only three `var(--…)` exceptions paint on or outside the face's
    edge, where the backdrop really is the page — the rim, the daylight arc, the minute band.
    `visual.test.ts` pins that split by exact equality, so a fourth has to be argued for.
+   **The face is also one hue, `palette.hue`, with exactly one exception**: `markers.accent`
+   on `palette.accentHue`, because the reader's own times are the one thing on the dial that
+   is not the sun's doing and hue is what says so. Pinned the same way, by exact path.
+   A saturated accent is also the only kind of mark that reads over both ends of the
+   lightness ramp — no single tone can, which is why this is a hue and not a tint.
 6. **Keep `cities.json` behind a dynamic `import()`.** A static import puts ~155 KB into
    the initial bundle.
 7. **Don't hand-edit `src/data/*.json`** and don't wire `scripts/build-cities.mjs` into
@@ -191,6 +202,19 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    survived because `sun.test.ts` allowed 10 minutes against suncalc's own `getTimes` and
    blamed the gap on "different solar models" — there is no second model, both sides come
    from `getPosition`. The tolerances are 1 min and 0.1 min now; don't loosen them.
+14. **Nothing the markers draw may reach past `markers.outer` (59).** Everything the dial is
+   read *against* — the hour numerals, the ticks, the rim, both ink flips — lives outside
+   that radius, so a tinted wedge can never become part of a backdrop one of those contrast
+   ratios was measured against. Widen the band past the numerals' glyph edge and every ratio
+   in `styles.css` and in `visual.ts` silently becomes a claim about an untinted face.
+   `visual.test.ts` pins that bound, and with it the readout box whose corners set
+   `markers.inner` from the inside.
+15. **Two translucent wedges of the same marker phase must never overlap.** They would
+   composite to an opacity nothing in `visual.ts` names, and the reader would try to read
+   meaning into the third shade. `MarkerWedges` emits **one path per phase** with every span
+   as a subpath, so a fill happens once however many markers cross; and it *splits* the block
+   in progress at `now` rather than laying `remaining` over `active`. Adding a phase means
+   adding a path, not a `<g opacity>`.
 
 ## Testing conventions
 

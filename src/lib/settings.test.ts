@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadShowSunArc, saveShowSunArc } from './settings';
+import type { Marker } from './markers';
+import { loadMarkers, loadShowSunArc, saveMarkers, saveShowSunArc } from './settings';
 
 /** Minimal in-memory localStorage, enough for the one key this module uses. */
 function fakeStorage(): Storage {
@@ -89,5 +90,50 @@ describe('the stored daylight-arc preference', () => {
     vi.stubGlobal('localStorage', throwingStorage());
     expect(() => saveShowSunArc(false)).not.toThrow();
     expect(() => saveShowSunArc(true)).not.toThrow();
+  });
+});
+
+describe('the stored markers', () => {
+  const markers: Marker[] = [
+    { label: 'Wake', start: 390, end: null },
+    { label: 'Work', start: 540, end: 1080 },
+  ];
+
+  it('defaults to none when nothing is stored', () => {
+    expect(loadMarkers()).toEqual([]);
+  });
+
+  it('round-trips a moment and an interval through storage', () => {
+    saveMarkers(markers);
+    expect(loadMarkers()).toEqual(markers);
+  });
+
+  it('stores an empty list as an absence, not as "[]"', () => {
+    // Same trick as the arc above and `theme.ts` before it: a fresh install and
+    // "I deleted the last one" are one state, so an upgrade that changed the
+    // default could not disagree with one of them.
+    saveMarkers(markers);
+    saveMarkers([]);
+    expect(localStorage.getItem('daynight.markers')).toBeNull();
+  });
+
+  it('reads junk as no markers rather than throwing mid-render', () => {
+    // Everything about *what* a marker may be is `parseMarkers`' business; this
+    // only checks that neither unparseable JSON nor the wrong shape escapes.
+    for (const raw of ['not json', '{"start":0}', '[{"label":"Work"}]', 'null']) {
+      localStorage.setItem('daynight.markers', raw);
+      expect(loadMarkers(), raw).toEqual([]);
+    }
+  });
+
+  it('reads as none rather than throwing when storage is unavailable', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(loadMarkers()).toEqual([]);
+  });
+
+  it('does not throw when storage writes fail', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(() => saveMarkers(markers)).not.toThrow();
+    expect(() => saveMarkers([])).not.toThrow();
   });
 });

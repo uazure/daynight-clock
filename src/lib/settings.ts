@@ -12,7 +12,10 @@
  * have different constraints on when and how they may be read.
  */
 
+import { type Marker, parseMarkers } from './markers';
+
 const SUN_ARC_KEY = 'daynight.showSunArc';
+const MARKERS_KEY = 'daynight.markers';
 
 /**
  * Whether the daylight arc is drawn outside the rim.
@@ -53,5 +56,39 @@ export function saveShowSunArc(showSunArc: boolean): void {
     }
   } catch {
     // ignored: the choice still applies for this session
+  }
+}
+
+/**
+ * The reader's own time markers, or `[]` when there are none.
+ *
+ * Absence is the default here too, and an empty list *is* the absence: a fresh
+ * install and "I deleted the last one" have to be the same state, or an upgrade
+ * that changed the default would disagree with one of them.
+ *
+ * Nothing is validated in this module. Whatever `JSON.parse` yields goes to
+ * `parseMarkers`, which owns every judgement about what a marker may be — so a
+ * hand-edited storage key degrades to a quieter dial rather than a thrown
+ * render, and the rules live next to the type they describe.
+ */
+export function loadMarkers(): Marker[] {
+  try {
+    const raw = localStorage.getItem(MARKERS_KEY);
+    return raw === null ? [] : parseMarkers(JSON.parse(raw));
+  } catch {
+    // Unreadable storage, or JSON that isn't. Either way: no markers.
+    return [];
+  }
+}
+
+export function saveMarkers(markers: Marker[]): void {
+  try {
+    if (markers.length === 0) {
+      localStorage.removeItem(MARKERS_KEY);
+    } else {
+      localStorage.setItem(MARKERS_KEY, JSON.stringify(markers));
+    }
+  } catch {
+    // ignored: same storage-unavailable case as saveShowSunArc
   }
 }
