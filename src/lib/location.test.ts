@@ -2,9 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearOverride,
   deviceTimezone,
-  dismissPrompt,
   geolocationPermission,
-  isPromptDismissed,
   loadOverride,
   type Place,
   placeFromTimezone,
@@ -15,7 +13,7 @@ import {
   utcOffsetLabel,
 } from './location';
 
-/** Minimal in-memory localStorage, enough for the four keys this module uses. */
+/** Minimal in-memory localStorage, enough for the one key this module uses. */
 function fakeStorage(): Storage {
   const map = new Map<string, string>();
   return {
@@ -118,14 +116,6 @@ describe('the stored override', () => {
   });
 });
 
-describe('the dismissed-prompt flag', () => {
-  it('starts unset and persists once set', () => {
-    expect(isPromptDismissed()).toBe(false);
-    dismissPrompt();
-    expect(isPromptDismissed()).toBe(true);
-  });
-});
-
 describe('storage failures (Safari private browsing, full quota)', () => {
   it('saveOverride does not throw when localStorage.setItem throws', () => {
     vi.stubGlobal('localStorage', throwingStorage());
@@ -133,19 +123,14 @@ describe('storage failures (Safari private browsing, full quota)', () => {
     expect(() => saveOverride(place)).not.toThrow();
   });
 
-  it('dismissPrompt does not throw when localStorage.setItem throws', () => {
-    vi.stubGlobal('localStorage', throwingStorage());
-    expect(() => dismissPrompt()).not.toThrow();
-  });
-
   it('clearOverride does not throw when localStorage.removeItem throws', () => {
     vi.stubGlobal('localStorage', throwingStorage());
     expect(() => clearOverride()).not.toThrow();
   });
 
-  it('isPromptDismissed returns false rather than throwing when getItem throws', () => {
+  it('loadOverride returns null rather than throwing when getItem throws', () => {
     vi.stubGlobal('localStorage', throwingStorage());
-    expect(isPromptDismissed()).toBe(false);
+    expect(loadOverride()).toBeNull();
   });
 });
 

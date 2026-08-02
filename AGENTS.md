@@ -9,12 +9,13 @@ lives" below.
 
 A 24-hour analog clock. One turn of the hour hand is one day, noon at the top and midnight
 at the bottom, and the dial face is shaded by the sun's real altitude at the selected
-place — daylight, the three twilight bands, night. Both the shading and the hands run on
-that place's own IANA time zone, so picking Tokyo from Prague shows Tokyo's clock.
+place — daylight above +6°, night below -6°, an eased transition between. Both the shading
+and the hands run on that place's own IANA time zone, so picking Tokyo from Prague shows
+Tokyo's clock.
 
 Non-goals: no server, no accounts, no analytics, no network calls at runtime, no precise
 location. Coordinates never leave the device (rounded to ~1 km) and nothing is persisted
-beyond two `localStorage` keys.
+beyond three `localStorage` keys — the chosen place, the theme and the daylight arc.
 
 ## Target platforms
 
@@ -33,6 +34,10 @@ the build itself has no OS dependencies, though development here happens on Wind
   altitude once per minute of the day (1440 samples, [suncalc](https://github.com/mourner/suncalc))
   and mapping each to a lightness, instead of computing sunrise/sunset and filling wedges.
   Polar day and polar night then need no special case anywhere.
+- **The shading window is +6°…-6°, tuned for a city, not for the twilight bands.** Below
+  about -6° a city street is lit by streetlights and stops getting darker, so the nautical
+  and astronomical bands carry no information here. The full argument, with the numbers the
+  old twilight-anchored ramp got wrong, is above `FULL_DARK_DEG` in `src/lib/lightness.ts`.
 - **Zone arithmetic through `Intl` only**, all of it in `src/lib/time.ts`. No date library.
 - **Pure `src/lib/`, thin React.** Logic lives in framework-free modules with tests;
   components are renderers over them.
@@ -47,10 +52,10 @@ the build itself has no OS dependencies, though development here happens on Wind
 
 ```
 src/lib/         pure logic + colocated *.test.ts (time, sun, lightness, visual, dial,
-                 geometry, location, cities, theme)
-src/hooks/       useNow, useDayProfile, useLocation, useTheme
-src/components/  Clock + dial parts, LocationPanel, LocationHint, ThemeToggle, ModalSheet
-                 and its one dialog (CityPickerModal)
+                 geometry, location, cities, theme, settings)
+src/hooks/       useNow, useDayProfile, useLocation, useTheme, useSettings, useFullscreen
+src/components/  Clock + dial parts (incl. SunArc), LocationPanel, ModalSheet and its four
+                 sheets (MainMenu, SettingsModal, CityPickerModal, AboutModal)
 src/data/        generated JSON — do not hand-edit; see src/data/README.md
 scripts/         build-cities.mjs, run by hand, never part of the build
 ```
@@ -127,14 +132,17 @@ failure it prevents — the notes here are the index, the code holds the reasoni
 4. **Never request geolocation without an explicit user action, and never without the
    accuracy-and-privacy note visible beside the control that triggers it.** One
    `getCurrentPosition` call site, coarse options only. A stored manual city outranks GPS.
-   The blocking consent modal this rule used to name is gone — it covered the dial before
-   the clock had shown anything, so the first run argued for a permission the reader had no
-   reason to care about yet. `LocationHint` carries the note now, beside its own button.
+   Two things this rule used to name are gone, both for covering the dial to talk about it:
+   a blocking consent modal, then the `LocationHint` note that floated over the lower rim.
+   The first run now asks nothing at all — the panel states which tier answered — and the
+   note travelled with the button to `CityPickerModal`, which holds the only control in the
+   app that can trigger a fix. Move that button and the note moves with it.
 5. **The theme switches page chrome, never the dial.** Night stays dark and day stays
    bright in both themes. Every dial visual — color, size, radius, stroke width — is
    decided in `src/lib/visual.ts` and nowhere else; a literal `hsl()` there is
-   theme-independent, and the only two `var(--…)` exceptions paint on or outside the face's
-   edge, where the backdrop really is the page. `visual.test.ts` pins that split.
+   theme-independent, and the only three `var(--…)` exceptions paint on or outside the face's
+   edge, where the backdrop really is the page — the rim, the daylight arc, the minute band.
+   `visual.test.ts` pins that split by exact equality, so a fourth has to be argued for.
 6. **Keep `cities.json` behind a dynamic `import()`.** A static import puts ~155 KB into
    the initial bundle.
 7. **Don't hand-edit `src/data/*.json`** and don't wire `scripts/build-cities.mjs` into
@@ -145,6 +153,44 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    its check, and declaring only the SVG is why installing was impossible on Android for a
    while. iOS needs the separate `apple-touch-icon` link in `index.html` or it uses a
    screenshot of the page as the icon.
+9. **`ModalSheet`'s focus trap takes the first and last *tab stop*, and its selector matches
+   more than that.** Unchecked radios in a group, `disabled` controls and CSS-hidden controls
+   all match `FOCUSABLE_SELECTOR` without being tab stops, and then `focusable[0]` and the
+   last entry are not the real ends: Shift-Tab from a checked radio that was not the first
+   match escaped the sheet into the browser chrome. That is why the theme control is a
+   `<select>` — one tab stop, one match — and not the radio group it briefly was. If any of
+   the three ever appear, collapse the list to real tab stops first.
+10. **Sheets replace each other, so focus restoration needs an explicit anchor.** Each sheet
+   captures what was focused when it opened, but in a chain (burger → settings → picker) that
+   capture is a control inside the sheet it replaced, detached by the time the chain ends —
+   and focusing a detached node silently does nothing, so closing left focus on `<body>`.
+   `App` holds `overlayOrigin` and passes it as `restoreFocusRef`; only the *entry points* set
+   it, and the ones that open a single sheet clear it so a stale burger reference cannot steal
+   focus from the link the reader actually used.
+11. **One `Overlay` value in `App`, never a boolean per dialog.** `null | 'menu' | 'settings'
+   | 'picker'`, so "menu and settings both open" is unrepresentable and the handoffs are
+   replaces rather than nests — two stacked scrims double-dim the page and stack two focus
+   traps. `.app-content` is `inert` whenever one is up, which is also what stops the burger
+   being re-triggered from behind a scrim. `.scrim` needs a `z-index` above `.burger`, or the
+   fixed burger paints straight through the anchored menu sheet. Closing undoes *one*
+   opening, not the chain: `pickerReturnsTo` remembers whether the settings sheet opened the
+   picker and sends it back there, and the settings sheet reads the same value to know it is
+   being re-shown and to put focus back on *Change location…*. It is a return target, not a
+   second open overlay — one `Overlay` value still decides what is on screen.
+12. **The dial is sized from whatever height `.panel` leaves**, so nothing in the panel may
+   change height after mount. That is why every chooser lives in an overlay, and why the
+   panel's source line is unconditional — it used to be suppressed while a floating hint was
+   up, which made it a line that could arrive a tick after mount. The portrait lift is a `transform` on `.clock` for the same
+   reason: moving the dial into an `auto` grid row makes its `height: 100%` indefinite and it
+   loses its size entirely. The `max-aspect-ratio` guard on that rule is load-bearing — the
+   lift only has letterbox space to spend on a screen much taller than it is wide.
+13. **`suncalc`'s `getPosition().altitude` is *apparent* altitude — refraction is already
+   in it.** So the sunrise threshold is `HORIZON_DEG = -0.349°`, not the geometric -0.833°
+   every table quotes. Using -0.833° subtracts refraction twice and fired the crossing a
+   flat 3 min early at mid latitudes, 4.4 min at Reykjavík, every day of the year. It
+   survived because `sun.test.ts` allowed 10 minutes against suncalc's own `getTimes` and
+   blamed the gap on "different solar models" — there is no second model, both sides come
+   from `getPosition`. The tolerances are 1 min and 0.1 min now; don't loosen them.
 
 ## Testing conventions
 

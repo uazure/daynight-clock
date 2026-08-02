@@ -1,5 +1,20 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 
+/**
+ * CAUTION: this matches *focusable candidates*, and the trap below assumes each
+ * match is its own **tab stop**. Three kinds of element break that assumption:
+ *
+ * - unchecked radios in a group (a group is one stop, however many radios),
+ * - `disabled` controls (matched here, not focusable),
+ * - controls hidden by CSS (likewise).
+ *
+ * When any of those are present, `focusable[0]` and the last entry stop being the
+ * real ends of the tab order and the trap leaks — Shift-Tab from a checked radio
+ * that was not the first match escaped the sheet into the browser chrome, which
+ * is why the theme control is a `<select>` and not a radio group. None of the
+ * three exist in the app today; if one arrives, collapse the list to real tab
+ * stops before taking its first and last.
+ */
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 interface Props {
@@ -14,21 +29,57 @@ interface Props {
    */
   initialFocusRef?: RefObject<HTMLElement | null>;
   /**
+   * Where focus goes when the sheet closes, overriding whatever happened to be
+   * focused when it opened.
+   *
+   * Needed because sheets *replace* each other: menu → settings → picker each
+   * unmount the previous one, so the auto-captured `previousFocus` of every sheet
+   * after the first is a control that is being removed from the DOM in the same
+   * commit. Focusing a detached element silently does nothing, so the chain used
+   * to end with focus on `<body>` — keyboard users lost their place entirely.
+   * `App` passes the element that opened the chain, which stays in the document
+   * the whole time.
+   */
+  restoreFocusRef?: RefObject<HTMLElement | null>;
+  /**
    * Whether clicking the scrim itself closes the sheet. Off by default, for a
    * dialog whose choice must be made explicitly rather than by dismissal. The
    * city picker, currently the only caller, opts in — closing it decides
    * nothing.
    */
   dismissOnScrim?: boolean;
+  /**
+   * Where the sheet sits inside the scrim. `center` is the dialog default;
+   * `anchor-start` pins it to the top-left corner, under the control that opened
+   * it, which is what makes the burger menu feel like a menu rather than a
+   * dialog while still getting the focus trap and Escape handling below.
+   */
+  placement?: 'center' | 'anchor-start';
+  /** Extra class on the sheet itself, for callers that need a narrower card. */
+  sheetClassName?: string;
   children: ReactNode;
 }
 
 /**
- * The scrim-and-sheet dialog behind the city picker: focus lands inside on
- * open, Tab wraps at the sheet's ends, Escape closes, and focus returns to
- * wherever it was when the sheet unmounts.
+ * The scrim-and-sheet dialog behind the city picker, the main menu and the
+ * settings: focus lands inside on open, Tab wraps at the sheet's ends, Escape
+ * closes, and focus returns to wherever it was when the sheet unmounts.
+ *
+ * The menu shares all of that rather than reimplementing it. A two-item menu
+ * looks like it wants a lighter component, but every behaviour it needs is one
+ * of these, and each one here cost a bug to get right — see the notes on
+ * `previousFocus` and on the dependency array below.
  */
-export function ModalSheet({ labelledBy, onClose, initialFocusRef, dismissOnScrim = false, children }: Props) {
+export function ModalSheet({
+  labelledBy,
+  onClose,
+  initialFocusRef,
+  restoreFocusRef,
+  dismissOnScrim = false,
+  placement = 'center',
+  sheetClassName,
+  children,
+}: Props) {
   const sheetRef = useRef<HTMLDivElement>(null);
   // Captured during the first render, not in the effect: by effect time the
   // app behind the scrim is already `inert` (and StrictMode's re-run of the
@@ -47,17 +98,23 @@ export function ModalSheet({ labelledBy, onClose, initialFocusRef, dismissOnScri
   // `loadCities().then(setCities)` guaranteeing the second render. And bare
   // `previousFocus.focus` in a dependency array dereferences a value the
   // cleanup below deliberately guards with `instanceof HTMLElement`, because
-  // `document.activeElement` can be null.
+  // `document.activeElement` can be null. `restoreFocusRef` is read in the
+  // cleanup on purpose — reading it late is what makes it point at the live
+  // origin of the chain rather than at whatever it held on mount.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only, see above
   useEffect(() => {
     const target = initialFocusRef?.current ?? sheetRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
     target?.focus();
 
     return () => {
-      // Hand focus back to the control that opened the sheet (on first load
-      // there is none, and focusing nothing is fine).
-      if (previousFocus instanceof HTMLElement) {
-        previousFocus.focus();
+      // Hand focus back: the caller's chosen anchor if it gave one, else whatever
+      // was focused when this sheet opened (on first load there is none, and
+      // focusing nothing is fine). The anchor wins because a replaced sheet's own
+      // capture is a control that is being detached in the same commit, and
+      // focusing a detached node silently does nothing.
+      const anchor = restoreFocusRef?.current ?? previousFocus;
+      if (anchor instanceof HTMLElement) {
+        anchor.focus();
       }
     };
   }, []);
@@ -72,7 +129,7 @@ export function ModalSheet({ labelledBy, onClose, initialFocusRef, dismissOnScri
     // would instead announce the backdrop itself as a control, which it is not.
     // biome-ignore lint/a11y/noStaticElementInteractions: presentational backdrop, see above
     <div
-      className="scrim"
+      className={placement === 'center' ? 'scrim' : 'scrim scrim-anchor-start'}
       role="presentation"
       onMouseDown={(event) => {
         if (dismissOnScrim && event.target === event.currentTarget) {
@@ -114,7 +171,13 @@ export function ModalSheet({ labelledBy, onClose, initialFocusRef, dismissOnScri
         }
       }}
     >
-      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
+      <div
+        ref={sheetRef}
+        className={sheetClassName ? `sheet ${sheetClassName}` : 'sheet'}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+      >
         {children}
       </div>
     </div>

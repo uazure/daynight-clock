@@ -1,9 +1,9 @@
 /*
  * Chrome colours only — the dial's own colours (ring ramp, tick/label ink,
  * hands) are semantic day-vs-night values decided in src/lib/visual.ts, and
- * deliberately do not change with the theme. The two dial tokens below are the
- * exceptions, and both paint on or outside the face's edge where the backdrop
- * really is the page; `visual.test.ts` pins that they are the only two.
+ * deliberately do not change with the theme. The three dial tokens below are the
+ * exceptions, and each paints on or outside the face's edge where the backdrop
+ * really is the page; `visual.test.ts` pins that they are the only three.
  *
  * Dark is the base; the light palette appears twice below because plain CSS
  * cannot join a media query and an attribute selector into one rule. Keep
@@ -18,21 +18,30 @@
   --scrim: hsl(220 20% 4% / 0.7);
   --sheet-bg: hsl(220 14% 14%);
   --sheet-shadow: hsl(220 30% 2% / 0.5);
-  --hint-bg: hsl(220 14% 14% / 0.92);
   --border: hsl(220 12% 40%);
   --btn-primary-bg: hsl(220 12% 92%);
   --btn-primary-text: hsl(220 14% 10%);
   --hover: hsl(220 12% 20%);
   --error: hsl(8 70% 70%);
-  /* The dial's silhouette. A mid-tone that reads against both ends of the
-     ring's lightness ramp (~3.7:1 vs L96%, ~4.3:1 vs L10.5%) and against
-     either page background (~4.6:1 vs the dark L8%, ~3.5:1 vs the light
-     L96%) — which is why one value serves both themes. */
+  /* The dial's silhouette. A mid-tone that reads against every part of the
+     ring's lightness ramp (~3.7:1 vs daylight at L96%, ~4.0:1 vs the L13.2%
+     night plateau where most of night sits, ~4.5:1 vs the L8.6% deep-night
+     floor) and against either page background (~4.6:1 vs the dark L8%,
+     ~3.5:1 vs the light L96%) — which is why one value serves both themes.
+     Re-measure if VISUAL.palette.band or the ramp's plateaus move. */
   --dial-outline: hsl(220 14% 52%);
   /* The minute band, outside the face, so this sits on the page rather than
      on the shaded ring: one static value per theme, deliberately quiet
      enough to stay subordinate to the hours (5.2:1 on the dark page). */
   --minute-ink: hsl(220 12% 55%);
+  /* The daylight arc, in the corridor between the rim and the minute band, so
+     also on the page. A step up from --minute-ink (7.5:1 on the dark page
+     against its 5.2:1) because it is the only thing left marking sunrise and
+     sunset now that the times are gone from the footer, so it has to be
+     findable — but only a step: the 1.4 units of air either side of it are what
+     separate it from the rim, and pushing the tone further only made the two
+     compete. */
+  --sun-arc: hsl(220 12% 66%);
 }
 
 @media (prefers-color-scheme: light) {
@@ -43,7 +52,6 @@
     --scrim: hsl(220 20% 10% / 0.35);
     --sheet-bg: hsl(220 14% 99%);
     --sheet-shadow: hsl(220 30% 20% / 0.25);
-    --hint-bg: hsl(220 14% 99% / 0.92);
     --border: hsl(220 12% 62%);
     --btn-primary-bg: hsl(220 14% 15%);
     --btn-primary-text: hsl(220 12% 96%);
@@ -51,6 +59,9 @@
     --error: hsl(8 75% 38%);
     /* Darker than the dark theme's, for the same 4.7:1 against a light page. */
     --minute-ink: hsl(220 12% 45%);
+    /* Mirrors the dark theme's step up from --minute-ink: 6.0:1 against the
+       light page. */
+    --sun-arc: hsl(220 12% 38%);
   }
 }
 
@@ -61,7 +72,6 @@
   --scrim: hsl(220 20% 10% / 0.35);
   --sheet-bg: hsl(220 14% 99%);
   --sheet-shadow: hsl(220 30% 20% / 0.25);
-  --hint-bg: hsl(220 14% 99% / 0.92);
   --border: hsl(220 12% 62%);
   --btn-primary-bg: hsl(220 14% 15%);
   --btn-primary-text: hsl(220 12% 96%);
@@ -69,6 +79,9 @@
   --error: hsl(8 75% 38%);
   /* Darker than the dark theme's, for the same 4.7:1 against a light page. */
   --minute-ink: hsl(220 12% 45%);
+  /* Mirrors the dark theme's step up from --minute-ink: 6.0:1 against the
+     light page. */
+  --sun-arc: hsl(220 12% 38%);
 }
 
 * {
@@ -90,12 +103,22 @@ body {
     sans-serif;
 }
 
+/*
+ * `dvh` rather than `100%`: on mobile browsers with a collapsing toolbar, 100%
+ * of the initial containing block is taller than what is actually on screen, and
+ * the footer ends up hidden behind the URL bar until you scroll. `dvh` tracks the
+ * visible viewport instead.
+ *
+ * Padded for the safe area as well as the fixed 1rem, because `viewport-fit=cover`
+ * in index.html lets the page under the notch and the rounded corners.
+ */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100dvh;
   gap: 1rem;
-  padding: 1rem;
+  padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right))
+    calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
 }
 
 /*
@@ -120,15 +143,38 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* The positioning context for `.hint`, which floats over the dial's lower
-     rim rather than joining the panel — see the note on `.hint`. */
-  position: relative;
 }
 
+/*
+ * The SVG box fills the whole stage; the dial is a square inside it, centred and
+ * letterboxed by the default `preserveAspectRatio`, so its diameter is
+ * `min(stageWidth, stageHeight)` with no CSS square anywhere.
+ */
 .clock {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/*
+ * On a tall screen the dial reads better a little above centre — dead centre
+ * looks low, because the footer text below it pulls the eye down. Lifted by 8%
+ * of the stage height, which puts the dial's centre at ~40% of the viewport on
+ * the common phone sizes (390x844 and 375x812 both land at 39.6%).
+ *
+ * `translateY` on the SVG rather than a restructured stage: the dial is sized
+ * from the stage's *definite* height, and moving it into an `auto` grid row
+ * would make `height: 100%` indefinite and cost it its size.
+ *
+ * The aspect-ratio guard is load-bearing. The lift is free only while there is
+ * letterbox space above the dial to give up, which is true exactly when the
+ * stage is much taller than it is wide. On a nearly-square portrait window the
+ * letterbox is ~0 and an 8% lift would push the dial off the top of the stage.
+ */
+@media (orientation: portrait) and (max-aspect-ratio: 3 / 4) {
+  .clock {
+    transform: translateY(-8%);
+  }
 }
 
 .place {
@@ -138,18 +184,6 @@ body {
   opacity: 0.7;
 }
 
-/*
- * The panel's payload, and the reason the hint below can stay so terse: a
- * sunrise time you have just been told is a guess makes its own argument.
- * Fully opaque, unlike the provenance around it — this is what the reader came
- * for. Unconditional, so the panel's height never moves (see LocationPanel).
- */
-.sun-times {
-  margin: 0.3rem 0 0;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
 .tz-note {
   margin: 0.3rem 0 0;
   text-align: center;
@@ -157,65 +191,13 @@ body {
 }
 
 /*
- * The first-run nudge. Floats over the dial's lower rim, absolutely positioned
- * against `.clock-stage`, because the dial is sized from whatever height the
- * panel leaves over: putting this in the panel would resize the clock once
- * when the permission state resolves and again when the note is dismissed.
- *
- * Translucent over a blur so the shading it is sitting on stays readable
- * through it — the note is about that shading being in the wrong place, so
- * hiding it entirely would be perverse.
+ * A `.hint` note used to float over the dial's lower rim on the first run,
+ * absolutely positioned against `.clock-stage`. It is gone, and with it that
+ * element's `position: relative` and the `--hint-bg` token: covering the dial to
+ * explain the dial was the wrong trade, and the footer states the same thing in
+ * space that was already spent. Nothing floats over the stage now — if something
+ * ever needs to again, the positioning context has to come back with it.
  */
-.hint {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(24rem, 100%);
-  /* Asymmetric on the right: the dismiss control sits in that gutter. */
-  padding: 0.7rem 2.1rem 0.7rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  background: var(--hint-bg);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 0.5rem 1.5rem var(--sheet-shadow);
-  text-align: center;
-  font-size: 0.85rem;
-}
-
-.hint-lead {
-  margin: 0;
-  opacity: 0.75;
-}
-
-.hint-actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.7rem;
-  margin: 0.55rem 0 0;
-}
-
-.hint-note {
-  margin: 0.45rem 0 0;
-  font-size: 0.75rem;
-  opacity: 0.6;
-}
-
-.hint-dismiss {
-  position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
-  padding: 0.1rem 0.3rem;
-  border: none;
-  font-size: 0.8rem;
-  line-height: 1;
-  opacity: 0.55;
-}
-
-.hint-dismiss:hover {
-  opacity: 1;
-}
 
 .scrim {
   position: fixed;
@@ -224,6 +206,25 @@ body {
   place-items: center;
   padding: 1rem;
   background: var(--scrim);
+  /* Above `.burger`, which is itself raised over the dial. Without this the
+     burger painted straight through the anchored menu sheet and its glyph
+     landed on top of the menu's own heading. */
+  z-index: 2;
+}
+
+/*
+ * Pins the sheet to the top-left instead of centring it, for the burger menu:
+ * a menu reads as belonging to the control that opened it, and that control is
+ * up there. The scrim itself stays — the menu traps focus and closes on Escape,
+ * which is worth a backdrop, and it buys outside-click dismissal for free.
+ */
+.scrim-anchor-start {
+  place-items: start;
+  /* Top inset clears the burger itself (0.75), so
+     the menu drops *below* the control rather than covering it — which is what
+     ties the two together. The other three sides only need the safe area. */
+  padding: calc(0.75rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right))
+    calc(0.75rem + env(safe-area-inset-bottom)) calc(0.75rem + env(safe-area-inset-left));
 }
 
 .sheet {
@@ -235,6 +236,34 @@ body {
   border-radius: 0.75rem;
   background: var(--sheet-bg);
   box-shadow: 0 1rem 3rem var(--sheet-shadow);
+  /* The city picker gets away without these by pinning `.results` to a fixed
+     height, but the settings sheet's content is as tall as its content: on a
+     short landscape phone it would otherwise run off both ends of the viewport
+     with no way to reach the rest. */
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+
+/* The menu is as wide as its two items, not as wide as a dialog. */
+.sheet-menu {
+  width: auto;
+  min-width: 12rem;
+  max-width: 20rem;
+  padding: 0.5rem;
+}
+
+.sheet-menu h2 {
+  margin: 0.25rem 0.5rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+.menu-items {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .sheet h2 {
@@ -279,11 +308,184 @@ button.link {
   text-decoration: underline;
 }
 
+/* Full-width rows rather than inline buttons: a menu is a list of choices.
+   After the base `button` rule, not up with the other `.menu-*` styles, so the
+   two read in specificity order. */
+.menu-items button {
+  border: none;
+  border-radius: 0.4rem;
+  text-align: left;
+}
+
+.menu-items button:hover {
+  background: var(--hover);
+}
+
+/*
+ * The one focus style in the file, and the menu is why it had to exist: every
+ * control was reachable by keyboard already, but nothing showed where focus
+ * was once the browser default was overridden by the `border` above.
+ * `:focus-visible` rather than `:focus`, so a mouse click does not ring it.
+ */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--dial-outline);
+  outline-offset: 2px;
+}
+
+/*
+ * The only chrome control on the clock screen. Fixed rather than in the flex
+ * column so it costs the dial no height, and inset by the safe area because a
+ * top-left button is exactly what a notch and a rounded corner eat.
+ */
+.burger {
+  position: fixed;
+  top: calc(0.75rem + env(safe-area-inset-top));
+  left: calc(0.75rem + env(safe-area-inset-left));
+  z-index: 1;
+  /* Sized for a thumb, not for the glyph: 2.75rem square is 44px, which is WCAG
+     2.5.5 (AAA) as well as 2.5.8 (AA, 24px). The glyph alone came to 30x22. */
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  /* 0.55 composited to 3.85:1 against the light page — enough for a graphic
+     (1.4.11) but not for the text character this actually is (1.4.3, 4.5:1).
+     0.7 gives 8.9:1 light and 8.6:1 dark, still visibly quiet. */
+  opacity: 0.7;
+}
+
+.burger:hover {
+  opacity: 1;
+}
+
+.settings-section {
+  margin: 0 0 1.25rem;
+}
+
+.settings-section:last-of-type {
+  margin-bottom: 0;
+}
+
+/*
+ * One look for two elements on purpose: a `<label for>` where the section holds
+ * a single named control (the theme select) and an `<h3>` where it does not (the
+ * dial checkbox carries its own label; the location section has no one control to
+ * name). A `fieldset`/`legend` would be the third option and is wrong here —
+ * a fieldset exists to name a *group*, and every section now holds one control.
+ */
+.settings-legend {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+/*
+ * The chevron's positioning context, and nothing else. A `<select>` cannot carry
+ * a `::after` in most browsers, so the arrow has to hang off a wrapper.
+ * `inline-block` keeps the control's width its own rather than the sheet's — it
+ * sits beside auto-width buttons, and a full-width select looked out of family.
+ */
+.settings-select-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.settings-select-wrap::after {
+  content: "▾";
+  position: absolute;
+  top: 50%;
+  right: 0.7rem;
+  transform: translateY(-50%);
+  /* Clicks must reach the select underneath, arrow included. */
+  pointer-events: none;
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+/*
+ * Vertical padding and border match the `button` rule rather than `.field input`,
+ * because this sits next to buttons rather than next to the picker's search box —
+ * a control two pixels shorter than the button below it reads as a mistake.
+ *
+ * `appearance: none` is what buys the padding on the right: the native arrow
+ * cannot be moved, and at this size it sat hard against the longest option with
+ * the whole control shrink-wrapped around it.
+ *
+ * The background is the one place this control cannot copy the `button` rule.
+ * `color-scheme: dark` on `:root` is what makes the platform paint a dark option
+ * list, and it only does so while the author has left the control's own colours
+ * alone; `appearance: none` plus `background: transparent` hands the popup the
+ * select's colours instead, and a transparent one resolves to white — which is
+ * exactly what shipped, a white list carrying the dark theme's near-white ink,
+ * three options that were only visible when highlighted. Naming an opaque
+ * background here (and on `option` below, for the browsers that read it off the
+ * options rather than off the select) is what puts the list back on a surface
+ * its text contrasts with. `--sheet-bg` rather than a new token because the
+ * select only ever appears inside a sheet, so the closed control still reads as
+ * flush with what is behind it, exactly as `transparent` did.
+ */
+.settings-select {
+  appearance: none;
+  min-width: 10rem;
+  padding: 0.45rem 2rem 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--sheet-bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings-select option {
+  background: var(--sheet-bg);
+  color: var(--text);
+}
+
+/* Radio and checkbox rows: control, then label, on one baseline. */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.settings-row input {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Sits under a row to explain it without competing with the label. */
+.settings-hint {
+  margin: 0.15rem 0 0 1.5rem;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+/* Not indented like `.settings-hint`: there is no control to its left. */
+.settings-place {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
 /*
  * Never grows or shrinks in the flex column — it always takes its natural
  * (content-driven) height, and the clock stage above yields whatever is
- * left. Everything that could change height after mount (the city chooser)
- * lives in the picker modal instead, so the dial's size never moves.
+ * left. Everything that could change height after mount (the city chooser, the
+ * settings) lives in an overlay instead, so the dial's size never moves.
  */
 .panel {
   flex: 0 0 auto;
@@ -291,10 +493,28 @@ button.link {
   text-align: center;
 }
 .picker-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 0.75rem;
-  justify-items: center;
   margin-top: 0.75rem;
+}
+
+/*
+ * Keeps *Use my location* and the accuracy-and-privacy note under it as one
+ * block: rule 4 requires the note to be beside the control, and a gap-separated
+ * sibling in the column above would read as a footnote about the whole dialog.
+ */
+.picker-locate {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  text-align: center;
+}
+
+.picker-locate .sheet-note {
+  margin: 0;
+  max-width: 22rem;
 }
 .field {
   display: grid;
@@ -346,4 +566,70 @@ button.link {
 }
 .error {
   color: var(--error);
+}
+
+/*
+ * On a phone a dialog stops being a card over the page and becomes the page.
+ * A centred card at this width is mostly margin, and the one it leaves at the
+ * bottom is where the on-screen keyboard lands the moment the city search takes
+ * focus — the sheet then floats in whatever strip is left. Full-bleed sidesteps
+ * that entirely and matches what every native picker does at this size.
+ *
+ * The burger menu is deliberately exempt: `.scrim-anchor-start` exists to tie
+ * that sheet to the control it drops out of, and a two-item menu filling the
+ * screen would misrepresent it as a page. It is the only anchored sheet, which
+ * is what makes `:not()` a safe way to say "the dialogs".
+ *
+ * The scrim keeps its `place-items` override rather than the sheet taking
+ * `height: 100%`: the sheet is a grid item, so stretching it is the grid's job,
+ * and `100%` of a `place-items: center` track is not the viewport.
+ */
+@media (max-width: 40rem) {
+  .scrim:not(.scrim-anchor-start) {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .scrim:not(.scrim-anchor-start) .sheet {
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+    max-height: none;
+    /* The scrim no longer insets it, so the safe area is the sheet's own to
+       clear — this is the element that now runs under the notch. */
+    padding: calc(1.25rem + env(safe-area-inset-top)) calc(1.25rem + env(safe-area-inset-right))
+      calc(1.25rem + env(safe-area-inset-bottom)) calc(1.25rem + env(safe-area-inset-left));
+    /* Both belong to a card standing on a page. There is no page left to stand
+       on and no edge left to round. */
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* Close sits at the bottom edge, where a thumb already is, instead of
+     following the content up the screen. */
+  .scrim:not(.scrim-anchor-start) .sheet-actions {
+    margin-top: auto;
+    padding-top: 1.25rem;
+  }
+
+  /*
+   * The picker spends the new height on its results: `flex: 1 1 0` gives the
+   * list exactly what is left after the search field and the buttons, and
+   * `min-height: 0` is what lets it shrink below its content so the scrolling
+   * happens inside the list rather than the sheet. The desktop rule's fixed
+   * 12rem is still doing its job there — it stops the dialog resizing on every
+   * keystroke — but here the sheet's height is the viewport's and cannot move,
+   * so the list is free to take it.
+   */
+  .scrim:not(.scrim-anchor-start) .picker-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .scrim:not(.scrim-anchor-start) .results {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+  }
 }

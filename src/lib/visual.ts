@@ -58,8 +58,10 @@ export const VISUAL = {
    *
    * Editing `band` invalidates the contrast ratios written next to
    * `--dial-outline` and `--minute-ink` in `styles.css`; those were measured
-   * against 96% at the bright end and ~10.5% at the dark end (the lowest the
-   * ramp actually reaches, `LIGHTNESS_ANCHORS[0]` being 0.06 rather than 0).
+   * against 96% at the bright end, ~13.2% at the night plateau
+   * (`NIGHT_LIGHTNESS`) and ~8.6% at the deep-night floor (`NIGHT_FLOOR`, the
+   * lowest the ramp actually reaches — 0.04 rather than 0). Moving either of
+   * those two ramp constants invalidates them just as surely as moving `band`.
    */
   palette: { hue: 220, saturation: 12, band: { min: 5, max: 96 } },
 
@@ -132,14 +134,24 @@ export const VISUAL = {
     weight: 500,
     /**
      * Two tones that trade places at `flipAt`: whichever one contrasts with the
-     * face becomes the fill, and the other is stroked *underneath* it
-     * (`paint-order: stroke`) as a halo. Both halves earn their keep.
+     * face becomes the fill, and the other is available to stroke *underneath*
+     * it (`paint-order: stroke`) as a halo.
      *
-     * The halo rescues the flip. Just either side of it the fill is a mid-tone
-     * on a mid-tone — about 3.5:1, against 14:1 or better at the ends of the
-     * ramp — and that dip sits in the civil-twilight band, exactly where a
-     * reader looks to find dawn and dusk. Outlined, the glyph reads against its
-     * own halo instead of against the dial.
+     * **`outlineWidth` is 0, so no halo is painted today.** The mechanism is
+     * kept wired up — `HourLabels` still strokes `ink.outline` at this width —
+     * because a non-zero value is the one knob that fixes the flip if it ever
+     * needs fixing, and it is a knob rather than a rewrite. A zero-width SVG
+     * stroke paints nothing, so leaving it on costs a no-op attribute and no
+     * conditional.
+     *
+     * What the halo was for: just either side of the flip the fill is a
+     * mid-tone on a mid-tone — about 3.5:1, against 14:1 or better at the ends
+     * of the ramp — and outlined, the glyph reads against its own halo instead
+     * of against the dial. That dip used to sit in the middle of the
+     * civil-twilight band, spread over hours of dial arc. Since the ramp was
+     * narrowed to `FULL_DARK_DEG`…`FULL_LIGHT_DEG` the flip lands on the true
+     * horizon and the mid-tones either side of it are minutes wide, not hours,
+     * which is why 0 is a reasonable setting rather than an oversight.
      *
      * The flip keeps the glyph *solid*. A single fixed pair was tried and
      * cannot win at both ends: dark-on-light is flawless over daylight and
@@ -166,15 +178,59 @@ export const VISUAL = {
      * clock face at.
      */
     step: 5,
-    radius: 93,
+    /**
+     * Nudged out from 93 to make room for `sunArc` between this band and the
+     * rim. At 93 the arc had only 0.8 units of air on each side and the two
+     * strokes merged into what read as a doubled silhouette rather than as two
+     * marks. 94 leaves 1.4 either side, and 94 + `size` is still 99, inside the
+     * viewBox with a unit to spare.
+     */
+    radius: 94,
     size: 5,
     weight: 300,
     /**
-     * The one dial colour that follows the theme, and legitimately so: this
+     * One of the dial colours that follows the theme, and legitimately so: this
      * band sits outside the face, on the page. Deliberately quiet enough to
      * stay subordinate to the hours — see `--minute-ink` in `styles.css`.
      */
     fill: 'var(--minute-ink)',
+  },
+
+  /**
+   * The band outside the rim spanning sunrise to sunset — what replaced the
+   * "Sunrise 05:31 · Sunset 20:45" line that used to sit under the dial. Opt-in
+   * now rather than on by default: the face's own shading turns at those two
+   * instants, so this restates them rather than being the only record of them.
+   * See `loadShowSunArc` in `settings.ts` for the rest of that argument.
+   *
+   * It lives in the corridor between the rim's painted outer edge (87.5) and the
+   * minute numerals' inner edge (91.5) — the only free band that still reads as
+   * part of the dial rather than as a detached ring. At width 1.2 it spans
+   * 88.9…90.1, leaving 1.4 units of air on each side, symmetric, and pinned by
+   * `visual.test.ts` against both neighbours' *painted* edges rather than their
+   * nominal radii.
+   *
+   * **That air is the whole reason `minuteLabels.radius` moved out to 94.** The
+   * first attempt kept the band at 93, which left only 0.8 units either side: at
+   * a 375px viewport that is ~1.4px, and on screen the arc and the rim merged
+   * into a single doubled stroke that read as a rendering artefact rather than as
+   * a mark. Widening the gap fixed it where retuning the colour could not.
+   *
+   * Slightly heavier than the 1-unit rim so it is not mistaken for one, but not
+   * by much — the separation now does that work. Its ends are radial faces rather
+   * than round caps, so each marks an exact minute; a round cap would smear each
+   * end by half the width, about three minutes of dial arc, which is the one
+   * thing this element exists to state precisely.
+   *
+   * Themed for the same reason `minuteLabels.fill` is: out here the backdrop is
+   * the page, not the day/night gradient, so a fixed tone would fight one of the
+   * two themes. That makes it the third and last entry in the allowlist
+   * `visual.test.ts` pins.
+   */
+  sunArc: {
+    radius: 88.5,
+    width: 0.2,
+    color: 'var(--sun-arc)',
   },
 
   hands: {

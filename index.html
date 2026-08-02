@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` lets the page under the notch and the rounded
+         corners, which is what makes `env(safe-area-inset-*)` return anything
+         but zero; `.app` and the top-left burger both pad by it. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Day/Night Clock</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <!-- Safari ignores the manifest's icons for Add to Home Screen and looks

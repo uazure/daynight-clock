@@ -42,7 +42,6 @@ export interface Place {
 export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unsupported';
 
 const PLACE_KEY = 'daynight.place';
-const PROMPT_KEY = 'daynight.geoPromptDismissed';
 
 const ZONES = timezoneCoords as unknown as Record<string, [number, number]>;
 
@@ -204,22 +203,13 @@ export function clearOverride(): void {
   }
 }
 
-export function isPromptDismissed(): boolean {
-  try {
-    return localStorage.getItem(PROMPT_KEY) === '1';
-  } catch {
-    // Storage unreadable: behave as if the prompt was never dismissed.
-    return false;
-  }
-}
-
-export function dismissPrompt(): void {
-  try {
-    localStorage.setItem(PROMPT_KEY, '1');
-  } catch {
-    // ignored: same storage-unavailable case as saveOverride
-  }
-}
+/*
+ * `isPromptDismissed`/`dismissPrompt` and their `daynight.geoPromptDismissed`
+ * key lived here until the first-run hint they belonged to was removed. Nothing
+ * is asked on first run any more, so there is no answer to remember: the panel
+ * states where the place came from, and the picker is where a fix is requested.
+ * Old keys are simply never read again — harmless, and not worth a migration.
+ */
 
 /**
  * The place to render on the very first frame. Synchronous by design, and it
