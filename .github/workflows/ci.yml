@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per PR: a new push supersedes the in-flight check for the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Same gate deploy.yml runs before publishing, so a green PR means the
+      # merge commit will not fail on the way to production.
+      # `biome ci` is the non-writing variant: it fails on anything `lint:fix`
+      # would have changed, formatting and import order included.
+      - run: npx biome ci .
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
