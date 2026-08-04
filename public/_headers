@@ -1,0 +1,17 @@
+# Cloudflare Pages header rules. Pages reads this from the build output root;
+# Vite copies it there from `public/`.
+#
+# The service worker script is the only channel through which any other update
+# reaches an installed client: the browser compares its bytes to decide whether
+# a new worker exists at all. Pages' default `max-age=14400, must-revalidate`
+# let a stale copy answer that check, so clients stayed pinned to an old build
+# indefinitely — the worker never even entered the update cycle. `no-cache`
+# means "revalidate every time", not "don't store", which is what a worker
+# script wants.
+/sw.js
+  Cache-Control: no-cache
+
+# Registered the worker, and is itself precached by it, so the same reasoning
+# applies.
+/registerSW.js
+  Cache-Control: no-cache
