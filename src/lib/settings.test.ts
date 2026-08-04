@@ -53,9 +53,9 @@ afterEach(() => {
 });
 
 describe('the stored year-knob preference', () => {
-  it('defaults to off when nothing is stored', () => {
+  it('defaults to on when nothing is stored', () => {
     // The dial someone meets on first run is the clock and nothing else.
-    expect(loadShowYearKnob()).toBe(false);
+    expect(loadShowYearKnob()).toBe(true);
   });
 
   it('round-trips both choices through storage', () => {
@@ -66,17 +66,14 @@ describe('the stored year-knob preference', () => {
   });
 
   it('stores the default as an absence, not a value', () => {
-    // Same trick as `theme.ts` with `auto`: a fresh install and a deliberate
-    // switch-off have to be the same state, or the two disagree after an upgrade
-    // that changes the default.
-    saveShowYearKnob(true);
     saveShowYearKnob(false);
+    saveShowYearKnob(true);
     expect(localStorage.getItem('daynight.showYearKnob')).toBeNull();
   });
 
-  it('treats an unrecognised stored value as off', () => {
+  it('treats an unrecognised stored value as on', () => {
     localStorage.setItem('daynight.showYearKnob', 'maybe');
-    expect(loadShowYearKnob()).toBe(false);
+    expect(loadShowYearKnob()).toBe(true);
   });
 
   it('reads as on rather than throwing when storage is unavailable', () => {

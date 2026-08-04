@@ -40,9 +40,7 @@ const SHOW_MARKERS_KEY = 'daynight.showMarkers';
  */
 export function loadShowYearKnob(): boolean {
   try {
-    // Only the exact string 'true' turns it on; absent, junk, or a hand-edited
-    // 'false' all read as off.
-    return localStorage.getItem(YEAR_KNOB_KEY) === 'true';
+    return localStorage.getItem(YEAR_KNOB_KEY) !== 'false';
   } catch {
     return true;
   }
@@ -50,8 +48,8 @@ export function loadShowYearKnob(): boolean {
 
 export function saveShowYearKnob(showYearKnob: boolean): void {
   try {
-    if (showYearKnob) {
-      localStorage.setItem(YEAR_KNOB_KEY, 'true');
+    if (!showYearKnob) {
+      localStorage.setItem(YEAR_KNOB_KEY, 'false');
     } else {
       localStorage.removeItem(YEAR_KNOB_KEY);
     }
