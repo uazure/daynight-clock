@@ -44,7 +44,7 @@ export function loadShowYearKnob(): boolean {
     // 'false' all read as off.
     return localStorage.getItem(YEAR_KNOB_KEY) === 'true';
   } catch {
-    return false;
+    return true;
   }
 }
 
