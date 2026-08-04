@@ -14,6 +14,7 @@
  */
 
 import { formatDuration, formatMinutesOfDay } from './time';
+import { VISUAL } from './visual';
 
 /**
  * Deliberately not derived from `SAMPLES_PER_DAY`: a marker is a wall-clock
@@ -155,6 +156,103 @@ export function markerSpans(marker: Marker): MinuteSpan[] {
   }
 
   return [{ from: marker.start, to: marker.end }];
+}
+
+/** Whether two markers share any minute of the day. */
+function overlaps(a: Marker, b: Marker): boolean {
+  for (const x of markerSpans(a)) {
+    for (const y of markerSpans(b)) {
+      if (x.from < y.to && y.from < x.to) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** Minutes an interval covers, both halves counted if it wraps midnight. */
+function coveredMinutes(marker: Marker): number {
+  return markerSpans(marker).reduce((total, span) => total + (span.to - span.from), 0);
+}
+
+/**
+ * Which radial lane each marker is drawn in — the index into `laneBand` below,
+ * parallel to the `markers` array it was given.
+ *
+ * WHY LANES AT ALL: two intervals that share minutes used to be drawn on the same
+ * band, where a 30-minute break inside a work block was simply invisible — the
+ * two tints are the same ink, and `MarkerWedges` deliberately emits one path
+ * per phase so an overlap composites once and reads as a single wedge. Lanes make
+ * the containment visible instead: the break sits *outside* the work it interrupts,
+ * the way a calendar puts a nested event beside its parent.
+ *
+ * **Longest first, so the innermost lane holds the longest interval** and shorter
+ * ones stack outward on top of it. That is the ordering a reader expects — the
+ * break appears above the work, not the other way round — and it falls out of
+ * sorting by covered minutes descending. Ties break by start time then by index,
+ * so the result never depends on iteration order.
+ *
+ * Greedy first-fit after that: each interval takes the innermost lane holding
+ * nothing it overlaps. With at most `MAX_MARKERS` intervals this is both fast and
+ * optimal in every arrangement a reader can produce; the general problem
+ * (colouring a circular-arc graph) is harder, but not at five nodes.
+ *
+ * **Moments are not laned** and always answer 0. They draw as a radial dash across
+ * the whole stacked band, which is what makes an instant readable *against* the
+ * intervals it falls inside rather than hidden among them.
+ */
+export function markerLanes(markers: Marker[]): number[] {
+  const lanes = markers.map(() => 0);
+  const intervals = markers
+    .map((marker, index) => ({ marker, index }))
+    .filter(({ marker }) => !isMoment(marker))
+    .sort(
+      (a, b) =>
+        coveredMinutes(b.marker) - coveredMinutes(a.marker) || a.marker.start - b.marker.start || a.index - b.index,
+    );
+
+  const placed: Marker[][] = [];
+  for (const { marker, index } of intervals) {
+    let lane = 0;
+    while (placed[lane]?.some((other) => overlaps(other, marker))) {
+      lane += 1;
+    }
+    placed[lane] = [...(placed[lane] ?? []), marker];
+    lanes[index] = lane;
+  }
+
+  return lanes;
+}
+
+/** How many lanes a `markerLanes` result uses. At least 1 whenever there is anything to draw. */
+export function laneCount(lanes: number[]): number {
+  return lanes.length === 0 ? 0 : Math.max(...lanes) + 1;
+}
+
+/**
+ * The radii of one lane, given how many lanes there are in total.
+ *
+ * Lanes grow **outward** from `markers.inner`, because inward is the readout's
+ * box. With one lane the band is exactly `inner`…`outer` — the geometry the dial
+ * has always had, so a reader with no overlapping markers sees no change at all.
+ *
+ * Lane height is `outer - inner` until that no longer fits, at which point it
+ * shrinks so the outermost lane lands exactly on `markers.maxOuter`. That bound is
+ * the load-bearing one: past it the wedges would reach the hour numerals and every
+ * contrast ratio measured for those numerals against an *untinted* face would
+ * quietly stop being true (AGENTS.md rule 14).
+ *
+ * Derived here rather than stored in `visual.ts` because it depends on a count
+ * that only exists at render time; the numbers it derives from are all decided
+ * there, as rule 5 asks.
+ */
+export function laneBand(lane: number, lanes: number): { inner: number; outer: number } {
+  const { inner, outer, maxOuter, laneGap } = VISUAL.markers;
+  const count = Math.max(1, lanes);
+  const height = Math.min(outer - inner, (maxOuter - inner - (count - 1) * laneGap) / count);
+  const from = inner + lane * (height + laneGap);
+
+  return { inner: from, outer: from + height };
 }
 
 /**

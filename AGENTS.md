@@ -16,8 +16,8 @@ wake-up, the hours of work — with a countdown at the hub to whichever boundary
 
 Non-goals: no server, no accounts, no analytics, no network calls at runtime, no precise
 location. Coordinates never leave the device (rounded to ~1 km) and nothing is persisted
-beyond four `localStorage` keys — the chosen place, the theme, the daylight arc and the
-reader's own times.
+beyond four `localStorage` keys — the chosen place, the theme, whether the year knob is on,
+and the reader's own times. The date that knob *selects* is deliberately **not** among them.
 
 ## Target platforms
 
@@ -54,12 +54,12 @@ the build itself has no OS dependencies, though development here happens on Wind
 
 ```
 src/lib/         pure logic + colocated *.test.ts (time, sun, lightness, visual, dial,
-                 geometry, location, cities, theme, settings, markers)
-src/hooks/       useNow, useDayProfile, useLocation, useTheme, useSettings, useMarkers,
-                 useFullscreen
-src/components/  Clock + dial parts (incl. SunArc, MarkerWedges, MarkerReadout),
-                 LocationPanel, ModalSheet and its five sheets (MainMenu, SettingsModal,
-                 CityPickerModal, MarkersModal, AboutModal)
+                 geometry, year, location, cities, theme, settings, markers)
+src/hooks/       useNow, useDayProfile, useLocation, useTheme, useMarkers,
+                 useFullscreen, useYearKnob, useYearDrag
+src/components/  Clock + dial parts (incl. YearKnob, MarkerWedges, MarkerReadout),
+                 YearSlider, LocationPanel, ModalSheet and its five sheets (MainMenu,
+                 SettingsModal, CityPickerModal, MarkersModal, AboutModal)
 src/data/        generated JSON — do not hand-edit; see src/data/README.md
 scripts/         build-cities.mjs, run by hand, never part of the build
 ```
@@ -147,13 +147,13 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    bright in both themes. Every dial visual — color, size, radius, stroke width — is
    decided in `src/lib/visual.ts` and nowhere else; a literal `hsl()` there is
    theme-independent, and the only three `var(--…)` exceptions paint on or outside the face's
-   edge, where the backdrop really is the page — the rim, the daylight arc, the minute band.
+   edge, where the backdrop really is the page — the rim, the year knob, the minute band.
    `visual.test.ts` pins that split by exact equality, so a fourth has to be argued for.
-   **The face is also one hue, `palette.hue`, with exactly one exception**: `markers.accent`
-   on `palette.accentHue`, because the reader's own times are the one thing on the dial that
-   is not the sun's doing and hue is what says so. Pinned the same way, by exact path.
-   A saturated accent is also the only kind of mark that reads over both ends of the
-   lightness ramp — no single tone can, which is why this is a hue and not a tint.
+   **The face is also one hue, `palette.hue`, with no exceptions.** The reader's markers
+   used to be the pinned exception, on an accent hue, because no single tone reads over
+   both ends of the lightness ramp. They now carry both tones instead — a `markers.core`
+   fill under a `markers.halo` edge, the hands' recipe — so the dark half of the pair
+   reads over daylight and the light half over night. Pinned the same way, by exact hue.
 6. **Keep `cities.json` behind a dynamic `import()`.** A static import puts ~155 KB into
    the initial bundle.
 7. **Don't hand-edit `src/data/*.json`** and don't wire `scripts/build-cities.mjs` into
@@ -202,26 +202,67 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    survived because `sun.test.ts` allowed 10 minutes against suncalc's own `getTimes` and
    blamed the gap on "different solar models" — there is no second model, both sides come
    from `getPosition`. The tolerances are 1 min and 0.1 min now; don't loosen them.
-14. **Nothing the markers draw may reach past `markers.outer` (59).** Everything the dial is
-   read *against* — the hour numerals, the ticks, the rim, both ink flips — lives outside
+14. **Nothing the markers draw may reach past `markers.maxOuter` (59).** Everything the dial
+   is read *against* — the hour numerals, the ticks, the rim, both ink flips — lives outside
    that radius, so a tinted wedge can never become part of a backdrop one of those contrast
    ratios was measured against. Widen the band past the numerals' glyph edge and every ratio
    in `styles.css` and in `visual.ts` silently becomes a claim about an untinted face.
-   `visual.test.ts` pins that bound, and with it the readout box whose corners set
-   `markers.inner` from the inside.
+   The bound is `maxOuter` rather than `outer` because overlapping markers stack outward in
+   lanes: `outer` is one lane's height, and `laneBand` shrinks that height so the outermost
+   lane lands on `maxOuter` exactly however many lanes there are. `visual.test.ts` pins the
+   bound, `markers.test.ts` pins the landing, and between them sits the readout box whose
+   corners set `markers.inner` from the inside.
 15. **Two translucent wedges of the same marker phase must never overlap.** They would
    composite to an opacity nothing in `visual.ts` names, and the reader would try to read
-   meaning into the third shade. `MarkerWedges` emits **one path per phase** with every span
-   as a subpath, so a fill happens once however many markers cross; and it *splits* the block
-   in progress at `now` rather than laying `remaining` over `active`. Adding a phase means
-   adding a path, not a `<g opacity>`.
+   meaning into the third shade. Three things hold that line: `MarkerWedges` emits **one path
+   per phase** with every span as a subpath, so a fill happens once however many markers
+   cross; it *splits* the block in progress at `now` rather than laying `remaining` over
+   `active`; and `markerLanes` gives markers that share minutes **different radii**, so they
+   cannot overlap at all. Adding a phase means adding a path, not a `<g opacity>`.
+   Note the lane rule is also what makes a contained interval *visible* — a 30-minute break
+   inside a work block was previously indistinguishable from the work, precisely because the
+   fill happens once. Longest interval innermost, shorter ones stacking outward, is the order
+   a reader expects. Moments are exempt: they draw across every lane, which is what makes an
+   instant readable against the intervals it falls inside.
+16. **The simulated date may reach the dial as shading and as nothing else.** The year knob
+   is opt-in and off by default, and switching it off returns the dial to today — `App` reads
+   that through one derived `activeDay` rather than resetting in the settings handler, so the
+   invariant holds however the setting changes. It selects a day; `App` turns it into a
+   `dateKey`, and `useDayProfile` turns that into a profile. `Clock` then receives it by exactly three routes — the `profile` it shades with,
+   the `dayOfYear` the knob is drawn at, and a string in the `aria-label`. **Nothing
+   time-of-day is derived from it**: `minuteOfDay`, `nextBoundary`, `MarkerWedges`,
+   `MarkerReadout` and `Hands` all come off the real `now`, so the hands keep the real time
+   and the countdown stays a real measurement. This holds structurally rather than by care,
+   because no simulated `Date` exists anywhere in the tree to reach for by accident — keep it
+   that way. Do not persist the simulated day either: reopening the app days later to a
+   simulated date, with no memory of having set one, is worse than losing a scrub position.
+17. **`sampleDay`'s offsets come from one `OffsetTimeline` per day, and `time.test.ts` proves
+   that is the same function as asking `Intl` per sample.** The timeline cut a profile from
+   ~15 ms to ~1.3 ms, which is what makes scrubbing possible at all — 90% of the old cost was
+   2880 `formatToParts` calls, not suncalc. It is safe *only* because it changes where the
+   offset numbers come from and not how a sample instant is derived, and because an
+   equivalence sweep asserts the fast and slow paths agree to the millisecond for every
+   minute of every day across zones with half-hour DST, quarter-hour offsets and a midnight
+   transition. `instantForZoneWallClock` stays exported and untouched as the reference. **Keep
+   that sweep**: it is the only thing standing between this optimisation and the class of bug
+   commit 172c4d1 fixed.
+18. **A focusable control may not live inside the `role="img"` dial.** `role="img"` makes its
+   subtree presentational, so the year knob's real control is a visually-hidden native
+   `<input type="range">` outside the SVG (`YearSlider`), and the knob's graphics stay
+   decorative. A native range brings the slider role, arrow stepping and — the part that
+   matters — automatic value announcement, so there is no live region to double-announce.
+   `aria-valuetext` carries the date, or it announces "216". Focus it on `pointerup` and
+   never on `pointerdown`: a focused slider announces every one of a drag's hundreds of
+   values.
 
 ## Testing conventions
 
 Vitest with `environment: 'node'`, `src/**/*.test.ts` only. **Pure logic** — no jsdom, no
 React Testing Library, so component and hook tests are deliberately out of scope. Where a
 browser global is unavoidable, stub it (`localStorage` in `theme.test.ts`,
-`Intl.DateTimeFormat` in `location.test.ts`).
+`Intl.DateTimeFormat` in `location.test.ts`). Where a zone-dependent failure would be
+*invisible* from Prague, design it out instead of guarding it — see `formatDayOfYear`, which
+builds a local midnight rather than a UTC one for exactly that reason.
 
 `vite.config.ts` pins `TZ=Europe/Prague` so the suite is machine-independent. Name a zone
 explicitly in new fixtures; only use `new Date(y, m, d, …)` when that zone is Prague.

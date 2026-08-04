@@ -5,6 +5,12 @@ interface Props {
   place: Place;
   error: string | null;
   onOpenPicker: () => void;
+  /**
+   * The date the dial is shaded for, already formatted, when that is not today.
+   * `null` the rest of the time, which is most of the time.
+   */
+  simulatedDate: string | null;
+  onResetDate: () => void;
 }
 
 /**
@@ -42,11 +48,17 @@ const SOURCE_TEXT: Record<Place['source'], string> = {
  *
  * It used to also print the day's sunrise and sunset, and to carry the theme
  * cycler. Both have gone: the face states both instants by where its shading
- * turns — and the opt-in daylight arc marks them outright — without a line of
- * text either way, and the theme belongs with the other preferences rather than
- * wedged into this line.
+ * turns, without a line of text either way, and the theme belongs with the other
+ * preferences rather than wedged into this line.
+ *
+ * The simulated-date notice is the one thing here that comes and goes, and it is
+ * **absolutely positioned over the stage above** rather than placed in this
+ * column, precisely because of the no-reflow rule: in the flow it would resize
+ * the dial at the moment the reader started dragging it. It is rendered from here
+ * anyway so it stays next to the place name it qualifies, in the DOM and on
+ * screen.
  */
-export function LocationPanel({ place, error, onOpenPicker }: Props) {
+export function LocationPanel({ place, error, onOpenPicker, simulatedDate, onResetDate }: Props) {
   const zone = deviceTimezone();
   // Compares current UTC offsets, not IANA zone names — Oslo and Prague are
   // different zones that share an offset for much of the year, and there is
@@ -55,6 +67,21 @@ export function LocationPanel({ place, error, onOpenPicker }: Props) {
 
   return (
     <section className="panel">
+      {/*
+        Floated over the stage, not in this column — see the note above. Only the
+        button takes pointer events, so the rest cannot swallow a drag aimed at
+        the dial behind it.
+      */}
+      {simulatedDate !== null && (
+        <p className="sim-date">
+          Shading for <strong>{simulatedDate}</strong>
+          {' · '}
+          <button type="button" className="link" onClick={onResetDate}>
+            back to today
+          </button>
+        </p>
+      )}
+
       <p className="place">
         Showing <strong>{place.label}</strong> · {place.lat.toFixed(2)}, {place.lon.toFixed(2)}{' '}
         <span className="muted">({SOURCE_TEXT[place.source]})</span>{' '}

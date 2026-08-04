@@ -10,49 +10,86 @@
  * Kept separate from `theme.ts` rather than folded into it because the theme is
  * read by the pre-paint boot script in `index.html`; nothing here is, so the two
  * have different constraints on when and how they may be read.
+ *
+ * A third key, `daynight.showSunArc`, belonged to the opt-in daylight arc that
+ * used to sit outside the rim. It is read by nothing now and no migration removes
+ * it: an unknown key costs a few bytes, and a one-shot cleanup would be more code
+ * than the thing it tidies.
  */
 
 import { type Marker, parseMarkers } from './markers';
 
-const SUN_ARC_KEY = 'daynight.showSunArc';
+const YEAR_KNOB_KEY = 'daynight.showYearKnob';
 const MARKERS_KEY = 'daynight.markers';
+const SHOW_MARKERS_KEY = 'daynight.showMarkers';
 
 /**
- * Whether the daylight arc is drawn outside the rim.
+ * Whether the year knob is drawn, and with it the date it can simulate.
  *
- * Defaults to **off**, so the arc is opt-in. It defaulted to on when it first
- * arrived, on the argument that it replaced the "Sunrise 05:31 · Sunset 20:45"
- * line that used to sit under the dial and that dropping the default would drop
- * that information for anyone who never opens the settings. What that argument
- * missed is that the face already carries the same two instants: the gradient's
- * midpoint *is* the horizon, so sunrise and sunset are where the shading turns,
- * and the arc restates them as a second mark outside the rim. The plain dial is
- * the better default; the arc stays for readers who want the boundary called
- * out explicitly.
+ * **Off by default**, so the dial someone meets on first run is the clock and
+ * nothing else. The knob is a good deal more than a decoration — it puts the face
+ * into a state where the shading is no longer *now*, which is the one thing this
+ * app otherwise promises unconditionally — and a reader who has not asked for that
+ * should not be one stray drag away from it. Opting in is also what makes the
+ * simulated-date notice over the dial honest rather than mysterious: you turned
+ * this on, so you know what it is.
  *
- * That makes `false` the absence case — `saveShowSunArc(false)` removes the key
- * rather than writing it, so a fresh install and a deliberate switch-off are the
- * same state. The flip needs no migration either: the old default wrote nothing
- * and the old off state wrote `'false'`, neither of which is `'true'`, so
- * everyone lands on the new default except readers who switch it on from here.
+ * `false` is therefore the absence case — `saveShowYearKnob(false)` removes the
+ * key rather than writing it, so a fresh install and a deliberate switch-off are
+ * the same state and a later change of default needs no migration.
  */
-export function loadShowSunArc(): boolean {
+export function loadShowYearKnob(): boolean {
   try {
-    // Only the exact string 'true' turns it on. Anything else — absent, junk
-    // from a hand-edited storage, or the 'false' the previous default wrote —
-    // reads as off.
-    return localStorage.getItem(SUN_ARC_KEY) === 'true';
+    // Only the exact string 'true' turns it on; absent, junk, or a hand-edited
+    // 'false' all read as off.
+    return localStorage.getItem(YEAR_KNOB_KEY) === 'true';
   } catch {
     return false;
   }
 }
 
-export function saveShowSunArc(showSunArc: boolean): void {
+export function saveShowYearKnob(showYearKnob: boolean): void {
   try {
-    if (showSunArc) {
-      localStorage.setItem(SUN_ARC_KEY, 'true');
+    if (showYearKnob) {
+      localStorage.setItem(YEAR_KNOB_KEY, 'true');
     } else {
-      localStorage.removeItem(SUN_ARC_KEY);
+      localStorage.removeItem(YEAR_KNOB_KEY);
+    }
+  } catch {
+    // ignored: the choice still applies for this session
+  }
+}
+
+/**
+ * Whether the reader's markers are drawn on the dial at all.
+ *
+ * **On by default** — the inverse of the year knob, because the two defaults
+ * answer different questions. Markers exist only because the reader added them,
+ * so adding one has to show it without a second step; a switch that started
+ * off would make the markers sheet look broken. What this setting offers is the
+ * other direction: a way to quiet the dial without deleting anything —
+ * `loadMarkers` is untouched by it, so hiding and showing lose nothing.
+ *
+ * `true` is therefore the absence case — `saveShowMarkers(true)` removes the
+ * key rather than writing it, so a fresh install and a deliberate switch-on are
+ * the same state and a later change of default needs no migration.
+ */
+export function loadShowMarkers(): boolean {
+  try {
+    // Only the exact string 'false' hides; absent, junk, or a hand-edited
+    // 'true' all read as shown.
+    return localStorage.getItem(SHOW_MARKERS_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+export function saveShowMarkers(showMarkers: boolean): void {
+  try {
+    if (showMarkers) {
+      localStorage.removeItem(SHOW_MARKERS_KEY);
+    } else {
+      localStorage.setItem(SHOW_MARKERS_KEY, 'false');
     }
   } catch {
     // ignored: the choice still applies for this session
@@ -89,6 +126,6 @@ export function saveMarkers(markers: Marker[]): void {
       localStorage.setItem(MARKERS_KEY, JSON.stringify(markers));
     }
   } catch {
-    // ignored: same storage-unavailable case as saveShowSunArc
+    // ignored: storage unavailable, and the markers still apply for this session
   }
 }

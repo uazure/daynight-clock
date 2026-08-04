@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { type NextBoundary, readoutLines } from '../lib/markers';
 import { VISUAL } from '../lib/visual';
 
-const { readout, accent } = VISUAL.markers;
+const { readout } = VISUAL.markers;
 
 interface Props {
   next: NextBoundary;
@@ -26,6 +26,11 @@ interface Props {
  * technology, the `<svg>` being `role="img"`: `Clock` puts the same sentence in
  * the dial's accessible name, which is the only route text inside it has.
  *
+ * Its ink is `readout.color` over its own dark outline — the same core–halo
+ * recipe the marks and the hands use, in the light-over-dark orientation,
+ * because nothing drawn on the ramp can lean on a single tone. The halo is
+ * what makes a plain light ink viable here.
+ *
  * The wording is `readoutLines`' decision, not this component's.
  */
 export const MarkerReadout = memo(function MarkerReadout({ next }: Props) {
@@ -33,7 +38,7 @@ export const MarkerReadout = memo(function MarkerReadout({ next }: Props) {
 
   return (
     <g
-      fill={accent}
+      fill={readout.color}
       stroke={readout.halo}
       strokeWidth={readout.haloWidth}
       strokeLinejoin="round"

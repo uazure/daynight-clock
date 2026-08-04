@@ -143,6 +143,149 @@ export function instantForZoneWallClock(dateKey: string, hour: number, minute: n
 }
 
 /**
+ * A zone's UTC offset over a bounded window, as a piecewise-constant function.
+ *
+ * `base` is the offset at `from`; each entry in `changes` is the first instant
+ * reading a new offset, ascending. Both bounds are inclusive, and asking outside
+ * them answers `null` rather than guessing — the caller falls back to the
+ * `Intl` round-trip.
+ */
+export interface OffsetTimeline {
+  readonly from: number;
+  readonly to: number;
+  readonly base: number;
+  readonly changes: readonly { readonly at: number; readonly offset: number }[];
+}
+
+/**
+ * How far either side of the day's UTC midnight the probes can reach.
+ *
+ * `instantForZoneWallClock` asks about two instants: the guess itself, which
+ * spans the day, and the guess corrected by an offset, which moves it by at most
+ * 14 h east or 12 h west. So the true reach is `[-14h, +36h]`; these bounds add
+ * a few hours of slack so the arithmetic need not be re-derived if the offset
+ * range ever widens.
+ */
+const OFFSET_WINDOW_BEFORE_MS = 18 * 3_600_000;
+const OFFSET_WINDOW_AFTER_MS = 42 * 3_600_000;
+
+/**
+ * Scanning step. An hour is unimpeachable: no zone has ever changed its offset
+ * twice within one hour, so no transition can hide between two probes. A coarser
+ * scan would save a handful of calls and cost that guarantee.
+ */
+const OFFSET_PROBE_STEP_MS = 3_600_000;
+
+/**
+ * The zone's offsets around the day `dateKey`, in ~67 `Intl` calls instead of the
+ * 2880 that sampling a day one minute at a time costs. `null` for an unknown
+ * zone, which is the caller's signal to use the slow path.
+ *
+ * Scan hourly; where two neighbouring probes disagree, bisect that hour down to
+ * the minute the change lands on. Every probe is at a whole minute, and so is
+ * every instant `instantForZoneWallClockWith` asks about, which is what makes the
+ * reproduction exact rather than approximate — see the note there.
+ */
+export function offsetTimelineForDay(dateKey: string, timeZone: string): OffsetTimeline | null {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const dayStart = Date.UTC(year, month - 1, day);
+  const from = dayStart - OFFSET_WINDOW_BEFORE_MS;
+  const to = dayStart + OFFSET_WINDOW_AFTER_MS;
+
+  try {
+    const base = fastOffsetMinutes(timeZone, from);
+    const changes: { at: number; offset: number }[] = [];
+    let previous = base;
+
+    for (let at = from + OFFSET_PROBE_STEP_MS; at <= to; at += OFFSET_PROBE_STEP_MS) {
+      const offset = fastOffsetMinutes(timeZone, at);
+      if (offset === previous) {
+        continue;
+      }
+      // `low` still reads the old offset, `high` already reads the new one;
+      // halve until they are adjacent minutes. Whole minutes throughout: the
+      // window starts on a UTC midnight and every step is a whole hour.
+      let low = (at - OFFSET_PROBE_STEP_MS) / 60_000;
+      let high = at / 60_000;
+      while (high - low > 1) {
+        const mid = Math.floor((low + high) / 2);
+        if (fastOffsetMinutes(timeZone, mid * 60_000) === previous) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      changes.push({ at: high * 60_000, offset });
+      previous = offset;
+    }
+
+    return { from, to, base, changes };
+  } catch {
+    return null;
+  }
+}
+
+/** The offset at `atMs`, or `null` when that falls outside the timeline. */
+export function offsetAtFromTimeline(timeline: OffsetTimeline, atMs: number): number | null {
+  if (atMs < timeline.from || atMs > timeline.to) {
+    return null;
+  }
+
+  let offset = timeline.base;
+  for (const change of timeline.changes) {
+    if (atMs < change.at) {
+      break;
+    }
+    offset = change.offset;
+  }
+  return offset;
+}
+
+/**
+ * `instantForZoneWallClock`, with the offsets read from a prepared timeline
+ * instead of from `Intl` — same arguments, same result, ~11× less work per call.
+ *
+ * THIS DOES NOT CHANGE HOW A SAMPLE INSTANT IS DERIVED, which is the whole
+ * reason it is safe. Sample `i` is still resolved from the wall-clock components
+ * `(dateKey, hour, minute)` through the same two-step offset correction, in the
+ * same order; only where the two offset *numbers* come from has changed, from an
+ * `Intl` round-trip to a lookup in a table built out of `Intl` round-trips. The
+ * spring-forward gap still resolves the same hour off the phantom time, the
+ * fall-back overlap still picks the same one of its two instants, and the last
+ * wall-clock hour of a 25-hour day is still sampled. `instantForZoneWallClock`
+ * stays exported and untouched as the reference, and `time.test.ts` asserts the
+ * two agree to the millisecond for every minute of every day it checks. Keep
+ * that test: it is the only thing standing between this optimisation and the
+ * class of bug commit 172c4d1 fixed.
+ *
+ * Falls back to the slow path whenever the timeline cannot answer — an unknown
+ * zone, or an instant outside the window — so a wrong answer is never preferred
+ * to a slow one.
+ */
+export function instantForZoneWallClockWith(
+  timeline: OffsetTimeline | null,
+  dateKey: string,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): Date {
+  if (timeline === null) {
+    return instantForZoneWallClock(dateKey, hour, minute, timeZone);
+  }
+
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
+
+  const first = offsetAtFromTimeline(timeline, guess);
+  const second = first === null ? null : offsetAtFromTimeline(timeline, guess - first * 60_000);
+  if (second === null) {
+    return instantForZoneWallClock(dateKey, hour, minute, timeZone);
+  }
+
+  return new Date(guess - second * 60_000);
+}
+
+/**
  * Minutes after midnight → `HH:MM` on a 24-hour clock, to match the dial the
  * reader is looking at. Rounding 23:59:40 up produces minute 1440, which is
  * the next day's `00:00`, so the result wraps rather than reading `24:00`.
