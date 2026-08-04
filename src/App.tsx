@@ -1,4 +1,4 @@
-import { type MouseEvent, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import { AboutModal } from './components/AboutModal';
 import { CityPickerModal } from './components/CityPickerModal';
 import { Clock } from './components/Clock';
@@ -6,14 +6,25 @@ import { LocationPanel } from './components/LocationPanel';
 import { MainMenu } from './components/MainMenu';
 import { MarkersModal } from './components/MarkersModal';
 import { SettingsModal } from './components/SettingsModal';
+import { YearSlider } from './components/YearSlider';
 import { useDayProfile } from './hooks/useDayProfile';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useLocation } from './hooks/useLocation';
 import { useMarkers } from './hooks/useMarkers';
 import { useNow } from './hooks/useNow';
-import { useSettings } from './hooks/useSettings';
+import { useYearDrag } from './hooks/useYearDrag';
+import { useYearKnob } from './hooks/useYearKnob';
 import { deviceTimezone, isGuessed } from './lib/location';
 import { sunEvents } from './lib/sun';
+import { dateKeyInZone } from './lib/time';
+import {
+  clampDayOfYear,
+  dateKeyForDayOfYear,
+  dayOfYearForDateKey,
+  daysInYear,
+  formatDayOfYear,
+  yearOfDateKey,
+} from './lib/year';
 
 /**
  * Which overlay is up, as one value rather than a boolean each.
@@ -32,8 +43,8 @@ export default function App() {
   const location = useLocation();
   const now = useNow();
   const fullscreen = useFullscreen();
-  const [showSunArc, setShowSunArc] = useSettings();
   const [markers, setMarkers] = useMarkers();
+  const [showYearKnob, setShowYearKnob] = useYearKnob();
   const [overlay, setOverlay] = useState<Overlay>(null);
   /**
    * Which sheet the settings sheet opened, if it opened one — and by implication
@@ -54,11 +65,67 @@ export default function App() {
   // `tz` is absent only for fallback places and pre-tz stored overrides;
   // the device zone is the only sensible reading of "local time" there.
   const timeZone = location.place.tz ?? deviceTimezone();
-  const profile = useDayProfile(now, location.place.lat, location.place.lon, timeZone);
+
+  /**
+   * Which day the dial is shaded for, or `null` for "whatever today is".
+   *
+   * `null` rather than today's number so an untouched dial still rolls over at
+   * the place's own midnight, and so "back to today" is a state to return to
+   * rather than a number to recompute. Deliberately not persisted: reopening the
+   * app days later to a simulated date, with no memory of having set one, is a
+   * worse failure than losing a scrub position on reload.
+   */
+  const [simulatedDay, setSimulatedDay] = useState<number | null>(null);
+  /**
+   * Switching the knob off returns the dial to today. Read here rather than reset
+   * in the settings handler, so the invariant holds however the setting changes —
+   * including the first render after a reload with the key absent.
+   */
+  const activeDay = showYearKnob ? simulatedDay : null;
+
+  const todayKey = dateKeyInZone(now, timeZone);
+  const year = yearOfDateKey(todayKey);
+  const daysThisYear = daysInYear(year);
+  // Clamped on the way out rather than on the way in, so a 366 held over from a
+  // leap year survives midnight on 31 December instead of throwing off the knob.
+  const shownDay = activeDay === null ? dayOfYearForDateKey(todayKey) : clampDayOfYear(activeDay, daysThisYear);
+  const shadingKey = activeDay === null ? todayKey : dateKeyForDayOfYear(year, shownDay);
+
+  /**
+   * The knob follows the finger on the urgent value; the 1440-sample profile is
+   * computed from a deferred one. React abandons and restarts a deferred render
+   * when a newer value arrives, so a fast scrub across months **skips** the days
+   * it passes rather than computing every one of them. `startTransition` would
+   * serialise them instead, and putting the knob itself behind the deferral would
+   * make it lag the finger, which is the one thing a drag cannot do.
+   */
+  const profile = useDayProfile(useDeferredValue(shadingKey), location.place.lat, location.place.lon, timeZone);
   // Keyed on the profile, so this rescans the samples only when they are
   // themselves recomputed — a new day in the place's zone, or a new place —
   // rather than on every tick of the second hand.
   const events = useMemo(() => sunEvents(profile.altitudes), [profile]);
+
+  /**
+   * Whether the knob should show a focus ring. Driven from the hidden slider's
+   * own `:focus-visible`, so a mouse drag leaves it off and a Tab turns it on.
+   */
+  const [knobFocusVisible, setKnobFocusVisible] = useState(false);
+  const sliderRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Hand focus to the slider when a drag ends, not when it starts.
+   *
+   * A focused native range announces every value change, and a drag produces
+   * hundreds — so focusing on `pointerup` yields exactly one announcement, of the
+   * date actually chosen, and leaves the arrows available to fine-tune from
+   * there. `preventScroll` because the control is 1px and off-screen.
+   */
+  const focusSlider = useCallback(() => {
+    sliderRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const { dragging, handlers } = useYearDrag(shownDay, daysThisYear, setSimulatedDay, focusSlider);
+  const simulatedDate = activeDay === null ? null : formatDayOfYear(year, shownDay);
   /**
    * The control that started the current run of overlays, and where focus goes
    * when the last of them closes.
@@ -137,20 +204,42 @@ export default function App() {
           thing it was explaining; the panel below now carries what it said.
         */}
         <div className="clock-stage">
+          {/*
+            Before the dial in the DOM, so tab order reads burger → date → the
+            footer's `change` link, and so the focus-ring rule in styles.css can
+            reach forward into `.clock` from it.
+          */}
+          {showYearKnob && (
+            <YearSlider
+              ref={sliderRef}
+              year={year}
+              dayOfYear={shownDay}
+              total={daysThisYear}
+              onChange={setSimulatedDay}
+              onFocusVisibleChange={setKnobFocusVisible}
+            />
+          )}
           <Clock
             now={now}
             profile={profile}
             timeZone={timeZone}
-            // `null` rather than a flag, so the Clock never learns that a
-            // setting exists — it draws the arc when it is given something to
-            // draw it from. The markers are the same idea: an empty list is the
-            // off state.
-            events={showSunArc ? events : null}
+            events={events}
             markers={markers}
+            knobDay={showYearKnob ? { dayOfYear: shownDay, daysThisYear } : null}
+            simulatedDate={simulatedDate}
+            knobFocusVisible={knobFocusVisible}
+            knobDragging={dragging}
+            knobHandlers={handlers}
           />
         </div>
 
-        <LocationPanel place={location.place} error={location.error} onOpenPicker={openPicker} />
+        <LocationPanel
+          place={location.place}
+          error={location.error}
+          onOpenPicker={openPicker}
+          simulatedDate={simulatedDate}
+          onResetDate={() => setSimulatedDay(null)}
+        />
       </div>
 
       {/*
@@ -173,13 +262,13 @@ export default function App() {
       {overlay === 'settings' && (
         <SettingsModal
           place={location.place}
-          showSunArc={showSunArc}
+          showYearKnob={showYearKnob}
           markerCount={markers.length}
           // Set only while one of this sheet's own children is open or has just
           // closed back into it, which is what makes it a focus target.
           returningFrom={settingsChild}
           restoreFocusRef={overlayOrigin}
-          onShowSunArcChange={setShowSunArc}
+          onShowYearKnobChange={setShowYearKnob}
           onOpenPicker={openFromSettings('picker')}
           onOpenMarkers={openFromSettings('markers')}
           onClose={close}

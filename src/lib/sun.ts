@@ -1,6 +1,6 @@
 import { getPosition } from 'suncalc';
 import { altitudeToLightness, HORIZON_DEG } from './lightness';
-import { instantForZoneWallClock } from './time';
+import { instantForZoneWallClockWith, offsetTimelineForDay } from './time';
 
 /** One sample per minute of the day. */
 export const SAMPLES_PER_DAY = 1440;
@@ -30,14 +30,22 @@ export interface DayProfile {
  * changes mid-day, elapsed minute `i` stops being wall-clock minute `i`, and
  * the whole ring ends up rotated an hour away from the hands (and the last
  * wall-clock hour of a fall-back day is never sampled at all).
+ *
+ * The offsets those 1440 inversions need are resolved once, into an
+ * `OffsetTimeline`, rather than asked of `Intl` per sample. That is where nearly
+ * all of this function's cost used to sit — 2880 `formatToParts` calls against
+ * 1440 cheap `getPosition` calls, ~15 ms a profile, which a knob scrubbing
+ * through dates cannot afford. The invariant above is untouched by it: see
+ * `instantForZoneWallClockWith` for why, and for the test that proves it.
  */
 export function sampleDay(dateKey: string, lat: number, lon: number, timeZone: string): DayProfile {
   const altitudes = new Float64Array(SAMPLES_PER_DAY);
   const lightness = new Float64Array(SAMPLES_PER_DAY);
+  const offsets = offsetTimelineForDay(dateKey, timeZone);
 
   for (let i = 0; i < SAMPLES_PER_DAY; i += 1) {
     const minutes = i * MINUTES_PER_SAMPLE;
-    const at = instantForZoneWallClock(dateKey, Math.floor(minutes / 60), minutes % 60, timeZone);
+    const at = instantForZoneWallClockWith(offsets, dateKey, Math.floor(minutes / 60), minutes % 60, timeZone);
     const altitude = getPosition(at, lat, lon).altitude;
     altitudes[i] = altitude;
     lightness[i] = altitudeToLightness(altitude);

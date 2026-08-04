@@ -22,6 +22,21 @@ export function angleForMinute(minute: number): number {
   return minute * MINUTE_ANGLE_DEG;
 }
 
+/**
+ * A dial angle folded onto `[-180, 180)`.
+ *
+ * **The half-open end matters, and it is the low end that is closed.** That is
+ * the range `angleForHour` itself produces — hour 0 is exactly `-180` — so
+ * `normalizeAngle(angleForHour(h)) === angleForHour(h)` for every hour, and an
+ * angle measured off a pointer can be compared with one derived from an hour
+ * without either side normalising first. Closing the high end instead would send
+ * straight-down to `+180`, and the bottom of the dial would have two spellings
+ * that compare unequal — which is where the year scale's origin sits.
+ */
+export function normalizeAngle(deg: number): number {
+  return ((((deg + 180) % 360) + 360) % 360) - 180;
+}
+
 export interface Point {
   x: number;
   y: number;
@@ -31,6 +46,25 @@ export interface Point {
  * Polar to SVG-cartesian, with 0° up and positive angles clockwise on screen.
  * Same convention as the original `toDecart`.
  */
+/**
+ * The dial angle of a point, the inverse of `toCartesian` up to the radius it
+ * discards. Normalised to `[-180, 180)`, so it is directly comparable with
+ * `angleForHour`.
+ *
+ * `atan2(x, -y)` rather than the usual `atan2(y, x)`: this dial's zero is
+ * straight up (which is -y, screen coordinates growing downwards) and its
+ * positive direction is clockwise, which swaps and negates the arguments the
+ * maths convention takes. The origin has no angle and answers 0.
+ */
+export function angleForPoint({ x, y }: Point): number {
+  return normalizeAngle((Math.atan2(x, -y) * 180) / Math.PI);
+}
+
+/** How far a point is from the dial centre. */
+export function radiusForPoint({ x, y }: Point): number {
+  return Math.hypot(x, y);
+}
+
 export function toCartesian(radius: number, angleDeg: number): Point {
   const rad = (angleDeg * Math.PI) / 180;
   return { x: radius * Math.sin(rad), y: -radius * Math.cos(rad) };

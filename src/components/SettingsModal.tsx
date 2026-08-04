@@ -7,7 +7,7 @@ import { ModalSheet } from './ModalSheet';
 
 interface Props {
   place: Place;
-  showSunArc: boolean;
+  showYearKnob: boolean;
   /** How many markers exist, so the row can say so without holding the list. */
   markerCount: number;
   /**
@@ -18,9 +18,9 @@ interface Props {
    * this the reader is returned to the top of a dialog they were in the middle of.
    */
   returningFrom?: 'picker' | 'markers' | null;
+  onShowYearKnobChange: (next: boolean) => void;
   /** Passed straight through — see `ModalSheet`'s own note on the prop. */
   restoreFocusRef?: RefObject<HTMLElement | null>;
-  onShowSunArcChange: (next: boolean) => void;
   onOpenPicker: () => void;
   onOpenMarkers: () => void;
   onClose: () => void;
@@ -59,11 +59,11 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
  */
 export function SettingsModal({
   place,
-  showSunArc,
+  showYearKnob,
   markerCount,
   returningFrom,
   restoreFocusRef,
-  onShowSunArcChange,
+  onShowYearKnobChange,
   onOpenPicker,
   onOpenMarkers,
   onClose,
@@ -122,14 +122,15 @@ export function SettingsModal({
         <label className="settings-row">
           <input
             type="checkbox"
-            checked={showSunArc}
-            aria-describedby="sun-arc-hint"
-            onChange={(event) => onShowSunArcChange(event.currentTarget.checked)}
+            checked={showYearKnob}
+            aria-describedby="year-knob-hint"
+            onChange={(event) => onShowYearKnobChange(event.currentTarget.checked)}
           />
-          Show daylight arc
+          Show the year knob
         </label>
-        <p className="settings-hint" id="sun-arc-hint">
-          A band outside the rim, from sunrise to sunset.
+        <p className="settings-hint" id="year-knob-hint">
+          A pointer on the dial's edge marking today in the year. Drag it, and the face is shaded for that date instead
+          — the hands keep the real time. Off returns the dial to today.
         </p>
       </div>
 
@@ -145,7 +146,7 @@ export function SettingsModal({
         <button ref={markersRef} type="button" aria-describedby="markers-hint" onClick={onOpenMarkers}>
           {markerCount === 0 ? 'Add your times…' : 'Edit your times…'}
         </button>
-        <p className="settings-hint markers-hint" id="markers-hint">
+        <p className="settings-hint" id="markers-hint">
           Your own moments and stretches of the day — a wake-up, the end of work — shaded onto the face, with a
           countdown to the next one at the centre.
         </p>

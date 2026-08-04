@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Marker } from './markers';
-import { loadMarkers, loadShowSunArc, saveMarkers, saveShowSunArc } from './settings';
+import { loadMarkers, loadShowYearKnob, saveMarkers, saveShowYearKnob } from './settings';
 
 /** Minimal in-memory localStorage, enough for the one key this module uses. */
 function fakeStorage(): Storage {
@@ -45,15 +45,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('the stored daylight-arc preference', () => {
+describe('the stored year-knob preference', () => {
   it('defaults to off when nothing is stored', () => {
-    expect(loadShowSunArc()).toBe(false);
+    // The dial someone meets on first run is the clock and nothing else.
+    expect(loadShowYearKnob()).toBe(false);
   });
 
   it('round-trips both choices through storage', () => {
-    for (const showSunArc of [true, false, true]) {
-      saveShowSunArc(showSunArc);
-      expect(loadShowSunArc()).toBe(showSunArc);
+    for (const on of [true, false, true]) {
+      saveShowYearKnob(on);
+      expect(loadShowYearKnob()).toBe(on);
     }
   });
 
@@ -61,35 +62,25 @@ describe('the stored daylight-arc preference', () => {
     // Same trick as `theme.ts` with `auto`: a fresh install and a deliberate
     // switch-off have to be the same state, or the two disagree after an upgrade
     // that changes the default.
-    saveShowSunArc(true);
-    saveShowSunArc(false);
-    expect(localStorage.getItem('daynight.showSunArc')).toBeNull();
+    saveShowYearKnob(true);
+    saveShowYearKnob(false);
+    expect(localStorage.getItem('daynight.showYearKnob')).toBeNull();
   });
 
   it('treats an unrecognised stored value as off', () => {
-    // Only the exact string 'true' turns it on, so junk falls back to the
-    // default rather than to whatever the junk resembles.
-    localStorage.setItem('daynight.showSunArc', 'maybe');
-    expect(loadShowSunArc()).toBe(false);
-  });
-
-  it("reads the previous default's off marker as off", () => {
-    // The arc used to default to on, with 'false' written for the off choice.
-    // Those keys are still out there, and they have to keep meaning off — this
-    // is the whole of the migration for the flipped default.
-    localStorage.setItem('daynight.showSunArc', 'false');
-    expect(loadShowSunArc()).toBe(false);
+    localStorage.setItem('daynight.showYearKnob', 'maybe');
+    expect(loadShowYearKnob()).toBe(false);
   });
 
   it('reads as off rather than throwing when storage is unavailable', () => {
     vi.stubGlobal('localStorage', throwingStorage());
-    expect(loadShowSunArc()).toBe(false);
+    expect(loadShowYearKnob()).toBe(false);
   });
 
   it('does not throw when storage writes fail', () => {
     vi.stubGlobal('localStorage', throwingStorage());
-    expect(() => saveShowSunArc(false)).not.toThrow();
-    expect(() => saveShowSunArc(true)).not.toThrow();
+    expect(() => saveShowYearKnob(true)).not.toThrow();
+    expect(() => saveShowYearKnob(false)).not.toThrow();
   });
 });
 
@@ -109,7 +100,7 @@ describe('the stored markers', () => {
   });
 
   it('stores an empty list as an absence, not as "[]"', () => {
-    // Same trick as the arc above and `theme.ts` before it: a fresh install and
+    // Same trick as `theme.ts` before it: a fresh install and
     // "I deleted the last one" are one state, so an upgrade that changed the
     // default could not disagree with one of them.
     saveMarkers(markers);

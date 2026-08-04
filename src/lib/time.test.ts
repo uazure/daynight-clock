@@ -5,7 +5,10 @@ import {
   formatMinutesOfDay,
   hoursSinceMidnightInZone,
   instantForZoneWallClock,
+  instantForZoneWallClockWith,
   minutesFromTimeValue,
+  offsetAtFromTimeline,
+  offsetTimelineForDay,
   wallClockInZone,
   zoneOffsetMinutes,
 } from './time';
@@ -240,5 +243,146 @@ describe('formatDuration', () => {
 
   it('clamps a negative span to nothing', () => {
     expect(formatDuration(-5)).toBe('0m');
+  });
+});
+
+/**
+ * The equivalence that licenses the offset-timeline fast path.
+ *
+ * `sampleDay` no longer asks `Intl` for an offset per sample; it builds one
+ * timeline per day and reads offsets out of it. That is a rewrite of the hottest
+ * arithmetic in the app, sitting exactly where commit 172c4d1's ring-rotation bug
+ * lived, so it is not enough for the fast path to look right — it has to be
+ * provably the same function. These tests are that proof, and they are cheap.
+ *
+ * The zone list is chosen for the things that break naive offset handling: a
+ * 30-minute DST shift, a quarter-hour offset, a transition at local midnight, the
+ * far ends of the offset range, and a zone with no DST at all.
+ */
+describe('the offset timeline reproduces the slow path exactly', () => {
+  const ZONES = [
+    'Europe/Prague',
+    'America/New_York',
+    'Australia/Lord_Howe',
+    'Pacific/Chatham',
+    'America/Havana',
+    'Asia/Kathmandu',
+    'Pacific/Kiritimati',
+    'UTC',
+  ];
+
+  const DAYS = [
+    '2026-01-01',
+    '2026-03-08',
+    '2026-03-29',
+    '2026-06-15',
+    '2026-10-25',
+    '2026-11-01',
+    '2026-12-31',
+    '2025-12-31',
+    '2024-02-29',
+  ];
+
+  for (const timeZone of ZONES) {
+    it(`agrees to the millisecond for every minute of every day, in ${timeZone}`, () => {
+      for (const dateKey of DAYS) {
+        const timeline = offsetTimelineForDay(dateKey, timeZone);
+        expect(timeline).not.toBeNull();
+
+        for (let minute = 0; minute < 1440; minute += 1) {
+          const hour = Math.floor(minute / 60);
+          const inMinute = minute % 60;
+          const fast = instantForZoneWallClockWith(timeline, dateKey, hour, inMinute, timeZone);
+          const slow = instantForZoneWallClock(dateKey, hour, inMinute, timeZone);
+          if (fast.getTime() !== slow.getTime()) {
+            // Named rather than left as a bare number mismatch: this is the one
+            // assertion whose failure means the dial may be an hour out.
+            throw new Error(
+              `${timeZone} ${dateKey} ${String(hour).padStart(2, '0')}:${String(inMinute).padStart(2, '0')} — ` +
+                `fast ${fast.toISOString()} vs slow ${slow.toISOString()}`,
+            );
+          }
+        }
+      }
+    });
+  }
+});
+
+describe('offsetTimelineForDay', () => {
+  it('finds no change in a zone that does not observe DST', () => {
+    for (const timeZone of ['UTC', 'Asia/Tokyo', 'Asia/Kathmandu']) {
+      expect(offsetTimelineForDay('2026-06-15', timeZone)?.changes).toEqual([]);
+    }
+  });
+
+  it('finds the spring-forward transition to the minute', () => {
+    // Prague springs forward at 02:00 local on 2026-03-29, which is 01:00 UTC.
+    const timeline = offsetTimelineForDay('2026-03-29', 'Europe/Prague');
+    expect(timeline?.changes).toEqual([{ at: Date.UTC(2026, 2, 29, 1, 0), offset: 120 }]);
+  });
+
+  it('finds the fall-back transition to the minute', () => {
+    // And back at 03:00 local on 2026-10-25, which is again 01:00 UTC.
+    const timeline = offsetTimelineForDay('2026-10-25', 'Europe/Prague');
+    expect(timeline?.changes).toEqual([{ at: Date.UTC(2026, 9, 25, 1, 0), offset: 60 }]);
+  });
+
+  it('finds a transition that lands on local midnight', () => {
+    // Havana moves its clock at 00:00 local, the case where the transition sits
+    // exactly on a day boundary rather than inside the day.
+    const timeline = offsetTimelineForDay('2026-03-08', 'America/Havana');
+    expect(timeline?.changes).toHaveLength(1);
+    expect(timeline?.changes[0].offset).toBe(-240);
+  });
+
+  it('finds a half-hour shift', () => {
+    // Lord Howe moves by 30 minutes, not 60 — a step a whole-hour assumption
+    // would either miss or misplace.
+    const timeline = offsetTimelineForDay('2026-04-05', 'Australia/Lord_Howe');
+    expect(timeline?.changes).toHaveLength(1);
+    expect(timeline?.changes[0].offset).toBe(630);
+  });
+
+  it('gives up on an unknown zone rather than guessing', () => {
+    expect(offsetTimelineForDay('2026-06-15', 'Not/AZone')).toBeNull();
+  });
+
+  it('falls back to the slow path when it cannot answer', () => {
+    // A null timeline has to degrade to today's behaviour exactly, including the
+    // unknown-zone case where that behaviour is "read the guess as UTC".
+    for (const timeZone of ['Europe/Prague', 'Not/AZone']) {
+      expect(instantForZoneWallClockWith(null, '2026-06-15', 5, 30, timeZone).getTime()).toBe(
+        instantForZoneWallClock('2026-06-15', 5, 30, timeZone).getTime(),
+      );
+    }
+  });
+});
+
+describe('offsetAtFromTimeline', () => {
+  const timeline = offsetTimelineForDay('2026-03-29', 'Europe/Prague');
+
+  it('reads the offset either side of a change', () => {
+    const change = Date.UTC(2026, 2, 29, 1, 0);
+    expect(offsetAtFromTimeline(timeline!, change - 60_000)).toBe(60);
+    // The change instant itself already reads the new offset.
+    expect(offsetAtFromTimeline(timeline!, change)).toBe(120);
+    expect(offsetAtFromTimeline(timeline!, change + 60_000)).toBe(120);
+  });
+
+  it('refuses instants outside its window', () => {
+    expect(offsetAtFromTimeline(timeline!, timeline!.from - 1)).toBeNull();
+    expect(offsetAtFromTimeline(timeline!, timeline!.to + 1)).toBeNull();
+    expect(offsetAtFromTimeline(timeline!, timeline!.from)).toBe(timeline!.base);
+  });
+
+  it('covers every instant the day’s samples can reach', () => {
+    // The window has to hold both probes for every minute of the day, or the
+    // fast path silently degrades to the slow one for part of the dial.
+    for (const minute of [0, 719, 1439]) {
+      const guess = Date.UTC(2026, 2, 29, Math.floor(minute / 60), minute % 60);
+      const first = offsetAtFromTimeline(timeline!, guess);
+      expect(first).not.toBeNull();
+      expect(offsetAtFromTimeline(timeline!, guess - (first as number) * 60_000)).not.toBeNull();
+    }
   });
 });

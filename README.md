@@ -56,12 +56,31 @@ dark. Solar positions come from [suncalc](https://github.com/mourner/suncalc),
 whose `getPosition` reports *apparent* (refraction-corrected) altitude — which
 is why the horizon here is -0.35° and not the geometric -0.833°.
 
-A thin band in the corridor just outside the rim can run from sunrise to sunset, so
-the two instants are marked explicitly rather than only by where the shading turns.
-Polar day makes it a complete ring and polar night removes it; near the polar circles
-there are days when daylight wraps midnight and it becomes two bands, one at each end
-of the dial. It is **off by default** — the face already says where sunrise and
-sunset are — and switched on in the settings.
+## Scrub the year
+
+A small pointer standing on the dial's edge marks where today falls in the year.
+One full turn of the dial is one year, and **1 January sits at the same place as
+hour 0** — the bottom — so the year and the day share an origin.
+
+Drag it, or focus it and use the arrow keys, and the face re-shades for that date:
+the whole of a Prague June against the whole of a Prague December, without waiting
+six months. Daylight saving is handled, so a date on the far side of a transition
+puts sunrise where that day's clocks would really have read it. The **hands keep
+showing the real time** throughout — only the shading moves — and the countdown to
+your next marker stays a real measurement. Dragging past 31 December continues to
+1 January of the same year.
+
+Keys: arrows a day, shift-arrows a week, PageUp/PageDown a calendar month, Home
+and End the ends of the year. A `back to today` link appears over the dial while a
+date is being simulated.
+
+It is **off by default** and switched on in the settings: the shading no longer
+being *now* is the one thing this clock otherwise promises unconditionally, so it
+is worth asking for rather than stumbling into. Turning it off returns the dial to
+today, and nothing about a scrub is remembered — the clock always opens on today.
+There is no scale drawn around the pointer, deliberately: months are 30 ± 1 days,
+so twelve month marks land within a degree of the twelve five-minute numerals just
+outside them and read as ticks belonging to the minute scale instead.
 
 ## Your own times
 
@@ -89,7 +108,7 @@ they follow the place you picked along with the hands.
 ## Controls
 
 Everything lives behind the burger button in the top-left corner: **Settings** for
-the theme, the daylight arc, your own times and the location, **Full screen** where
+the theme, the year knob, your own times and the location, **Full screen** where
 the browser supports it, and **What is this?** for the short version of the idea. The footer
 under the dial names the place, its coordinates and where that guess came from,
 with a `change` link straight to the city picker. Nothing covers the dial on the

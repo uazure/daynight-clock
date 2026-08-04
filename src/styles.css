@@ -34,14 +34,12 @@
      on the shaded ring: one static value per theme, deliberately quiet
      enough to stay subordinate to the hours (5.2:1 on the dark page). */
   --minute-ink: hsl(220 12% 55%);
-  /* The daylight arc, in the corridor between the rim and the minute band, so
-     also on the page. A step up from --minute-ink (7.5:1 on the dark page
-     against its 5.2:1) because it is the only thing left marking sunrise and
-     sunset now that the times are gone from the footer, so it has to be
-     findable — but only a step: the 1.4 units of air either side of it are what
-     separate it from the rim, and pushing the tone further only made the two
-     compete. */
-  --sun-arc: hsl(220 12% 66%);
+  /* The year knob, standing on the rim's outer edge, so on the page rather than
+     on the shaded ring. A step up from --minute-ink (7.5:1 on the dark page
+     against its 5.2:1) because it is a control and has to be findable. Only a
+     step, though: it is a filled shape rather than a hairline, so area already
+     does most of the work of separating it from everything around it. */
+  --year-knob: hsl(220 12% 66%);
 }
 
 @media (prefers-color-scheme: light) {
@@ -61,7 +59,7 @@
     --minute-ink: hsl(220 12% 45%);
     /* Mirrors the dark theme's step up from --minute-ink: 6.0:1 against the
        light page. */
-    --sun-arc: hsl(220 12% 38%);
+    --year-knob: hsl(220 12% 38%);
   }
 }
 
@@ -81,18 +79,37 @@
   --minute-ink: hsl(220 12% 45%);
   /* Mirrors the dark theme's step up from --minute-ink: 6.0:1 against the
      light page. */
-  --sun-arc: hsl(220 12% 38%);
+  --year-knob: hsl(220 12% 38%);
 }
 
 * {
   box-sizing: border-box;
 }
 
+/*
+ * The app is exactly one viewport tall and never scrolls, so any scroll position
+ * at all is a bug — and there was one: in the installed Android PWA a downward
+ * drag triggered the browser's pull-to-refresh, which left the document scrolled
+ * with the footer stranded off-screen until you scrolled back. `dvh` on `.app`
+ * sized the layout correctly but did nothing to stop the gesture.
+ *
+ * `overscroll-behavior: none` refuses both pull-to-refresh and scroll chaining;
+ * `overflow: hidden` means there is no scroll position to end up at even if a
+ * gesture gets through. Both are needed — the first stops the gesture, the second
+ * stops its consequences.
+ *
+ * This matters more now than it did: dragging the year knob downward is a normal
+ * thing to do, and it starts exactly the gesture pull-to-refresh wants. The knob's
+ * own grab target adds `touch-action: none` on top of this, scoped to itself
+ * rather than to the whole dial, so pinch-zoom survives everywhere else.
+ */
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -143,6 +160,13 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  /*
+   * The positioning context the note below records as having been removed — back
+   * deliberately, for `.sim-date`. It is here rather than on `.panel` because the
+   * notice belongs over the *dial*, and because anything that appears in the
+   * panel's own column resizes the clock.
+   */
+  position: relative;
 }
 
 /*
@@ -192,12 +216,75 @@ body {
 
 /*
  * A `.hint` note used to float over the dial's lower rim on the first run,
- * absolutely positioned against `.clock-stage`. It is gone, and with it that
- * element's `position: relative` and the `--hint-bg` token: covering the dial to
- * explain the dial was the wrong trade, and the footer states the same thing in
- * space that was already spent. Nothing floats over the stage now — if something
- * ever needs to again, the positioning context has to come back with it.
+ * absolutely positioned against `.clock-stage`. It is gone, and with it the
+ * `--hint-bg` token: covering the dial to explain the dial was the wrong trade,
+ * and the footer states the same thing in space that was already spent.
+ *
+ * `.sim-date` below is the one thing that floats there now, and its case is the
+ * opposite of the hint's: it says something the reader has *just asked for* by
+ * dragging the knob, it is gone again the moment they press `today`, and it cannot
+ * go in the panel's column because anything that appears there resizes the dial
+ * mid-drag. `.clock-stage` carries `position: relative` again for it.
  */
+
+/*
+ * The simulated-date notice. Above the dial rather than below, where the footer
+ * and the hub's countdown both are, and clear of the hands' sweep.
+ *
+ * `pointer-events: none` on the line with it re-enabled on the button: the notice
+ * sits over the top of the dial, and without this it would swallow a drag aimed at
+ * the ring behind it.
+ */
+.sim-date {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.sim-date .link {
+  pointer-events: auto;
+}
+
+/*
+ * Reachable but unseen: the year knob's real control is a native range input, and
+ * this is what keeps it out of the picture while leaving it focusable and
+ * announceable. Deliberately not `display: none` or `visibility: hidden`, either
+ * of which would take it out of the tab order — and not a bare `opacity: 0`, which
+ * would leave a full-size slider hit-testable over the dial.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * The knob's grab target. `touch-action: none` is scoped here rather than to
+ * `.clock`, which would disable pinch-zoom across ~90% of the screen and regress
+ * WCAG 1.4.4; on this shape it stops pull-to-refresh and double-tap zoom from
+ * eating a drag.
+ */
+.year-hit {
+  cursor: grab;
+  touch-action: none;
+}
+
+.year-hit[data-dragging] {
+  cursor: grabbing;
+}
 
 .scrim {
   position: fixed;
@@ -452,7 +539,7 @@ select:focus-visible {
   color: var(--text);
 }
 
-/* Radio and checkbox rows: control, then label, on one baseline. */
+/* Control, then label, on one baseline. */
 .settings-row {
   display: flex;
   align-items: center;
@@ -467,21 +554,16 @@ select:focus-visible {
   cursor: pointer;
 }
 
-/* Sits under a row to explain it without competing with the label. */
+/*
+ * Sits under its control to explain it without competing with the label. Flush
+ * left rather than indented under a checkbox: every hint in the sheet now sits
+ * below its own control, including the year knob's, so one margin serves all of
+ * them.
+ */
 .settings-hint {
-  margin: 0.15rem 0 0 1.5rem;
+  margin: 0.15rem 0 0;
   font-size: 0.8rem;
   opacity: 0.6;
-}
-
-/*
- * The two hints that sit *under* their own control rather than beside a checkbox,
- * so the 1.5rem indent `.settings-hint` carries for a checkbox row would leave
- * them hanging off nothing.
- */
-.markers-hint,
-.markers-lead {
-  margin-left: 0;
 }
 
 .markers-lead {

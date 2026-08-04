@@ -4,7 +4,7 @@ import { altitudeToLightness, FULL_DARK_DEG, FULL_LIGHT_DEG, HORIZON_DEG, NIGHT_
 import { MINUTES_PER_SAMPLE, SAMPLES_PER_DAY } from './sun';
 import { VISUAL } from './visual';
 
-const { canvas, face, palette, ring, ticks, hourLabels, minuteLabels, sunArc, markers, hands } = VISUAL;
+const { canvas, face, palette, ring, ticks, hourLabels, minuteLabels, yearKnob, markers, hands } = VISUAL;
 
 /** Normalises a dial angle onto 0..360 so the two scales can be compared. */
 const turn = (deg: number) => ((deg % 360) + 360) % 360;
@@ -70,8 +70,8 @@ describe('the dial fits together', () => {
     // Only half the glyph extends past the band's radius; allowing a whole font
     // size leaves the margin the outer band needs to not look clipped.
     expect(minuteLabels.radius + minuteLabels.size).toBeLessThanOrEqual(canvas.extent);
-    // The arc is a stroke, so only half its width reaches past its radius.
-    expect(sunArc.radius + strokeReach(sunArc.width)).toBeLessThan(canvas.extent);
+    // The knob's base is the outermost painted thing outside the minute band.
+    expect(yearKnob.base).toBeLessThan(canvas.extent);
   });
 
   it('lengthens each tick tier in step with its emphasis', () => {
@@ -224,27 +224,35 @@ describe('the two numeral scales', () => {
     );
   });
 
-  it('threads the daylight arc between the rim and the minute band', () => {
-    // Painted edges on both sides, for the same reason the test above uses
-    // them: the arc has ~4 units of corridor to live in and under a unit of air
-    // on the rim side, so a change measured against nominal radii would look
-    // fine here and collide on screen.
-    expect(sunArc.radius - strokeReach(sunArc.width)).toBeGreaterThan(face.radius + strokeReach(face.rim.width));
-    expect(sunArc.radius + strokeReach(sunArc.width)).toBeLessThan(minuteLabels.radius - glyphReach(minuteLabels.size));
+  it("stands the knob's point on the dial's edge", () => {
+    // Touching, not merely near. The daylight arc that used to occupy this
+    // corridor had to read as *separate* from the rim and merged with it into a
+    // doubled silhouette when it came within a unit; a filled triangle cannot be
+    // mistaken for a second silhouette, so contact is safe here where proximity
+    // was not — and contact is what makes the pointer read as part of the dial.
+    expect(yearKnob.apex).toBe(face.radius + strokeReach(face.rim.width));
   });
 
-  it('keeps the daylight arc a hairline finer than the rim, and off it', () => {
-    // This assertion has been both ways round. The arc was once *heavier* than
-    // the rim, on the argument that matching its weight a unit away would read
-    // as a second silhouette — and at 1.2 units it read as one regardless.
-    // Weight was never what separates them: the air between them is, and
-    // `--sun-arc` sits a step brighter than the ink around it. So the arc is a
-    // hairline now, and what has to be pinned is that it stays one and stays
-    // clear of the rim. The way back, if it ever needs to be louder, is more
-    // separation rather than more ink.
-    expect(sunArc.width).toBeLessThan(face.rim.width);
-    const air = sunArc.radius - strokeReach(sunArc.width) - (face.radius + strokeReach(face.rim.width));
-    expect(air).toBeGreaterThanOrEqual(0.5);
+  it('keeps the knob clear of the minute numerals', () => {
+    // The other end of the corridor, measured against the glyphs' painted edge
+    // rather than their nominal radius, for the reason the tests above give.
+    expect(minuteLabels.radius - glyphReach(minuteLabels.size) - yearKnob.base).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('keeps the knob taller than it is wide', () => {
+    // At a 375px viewport this shape is about 4px by 3px, and that small it reads
+    // as a pointer only while the point is the longest thing about it. Widen it
+    // and it becomes a blob that could be anything.
+    expect(yearKnob.base - yearKnob.apex).toBeGreaterThan(yearKnob.halfBase * 2);
+  });
+
+  it('gives the knob a target a finger can find', () => {
+    // The knob is ~3px across at a 375px viewport, so the hit wedge is the whole
+    // of its usability on touch. Wider than one day of arc in a leap year, or the
+    // day under the finger would be unreachable.
+    expect(yearKnob.hit.inner).toBeLessThan(yearKnob.apex);
+    expect(yearKnob.hit.outer).toBeGreaterThan(yearKnob.base);
+    expect(yearKnob.hit.halfAngleDeg).toBeGreaterThan(360 / 366 / 2);
   });
 
   it('gives every anchor tick a numeral to anchor', () => {
@@ -263,12 +271,12 @@ describe('the dial palette', () => {
   it('paints the dial itself in theme-independent colour', () => {
     // AGENTS.md rule 5: the theme switches page chrome, never the dial. The
     // three exceptions each paint on or outside the face's edge, where the
-    // backdrop really is the page — the rim straddles it, the daylight arc sits
-    // in the corridor just beyond it, the minute band beyond that. Everything
+    // backdrop really is the page — the rim straddles it, the year knob stands on
+    // it, the minute band sits beyond that. Everything
     // else lands on the day/night gradient and must not move when the theme
     // does. Exact equality, so a fourth cannot be added without arguing for it.
     const themed = colours.filter((leaf) => String(leaf.value).includes('var('));
-    expect(themed.map((leaf) => leaf.path).sort()).toEqual(['face.rim.color', 'minuteLabels.fill', 'sunArc.color']);
+    expect(themed.map((leaf) => leaf.path).sort()).toEqual(['face.rim.color', 'minuteLabels.fill', 'yearKnob.color']);
   });
 
   it('keeps every literal colour on the palette hue, bar the pinned accent', () => {

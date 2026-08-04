@@ -197,11 +197,12 @@ export const VISUAL = {
      */
     step: 5,
     /**
-     * Nudged out from 93 to make room for `sunArc` between this band and the
-     * rim. At 93 the arc had only 0.8 units of air on each side and the two
-     * strokes merged into what read as a doubled silhouette rather than as two
-     * marks. 94 leaves 1.4 either side, and 94 + `size` is still 99, inside the
-     * viewBox with a unit to spare.
+     * Nudged out from 93 to open the corridor between this band and the rim. At 93
+     * the mark that used to sit in it had only 0.8 units of air on each side and
+     * the two strokes merged into what read as a doubled silhouette rather than as
+     * two marks. 94 leaves the corridor room for the year knob to stand clear of
+     * these glyphs, and 94 + `size` is still 99, inside the viewBox with a unit to
+     * spare.
      */
     radius: 94,
     size: 5,
@@ -215,44 +216,52 @@ export const VISUAL = {
   },
 
   /**
-   * The band outside the rim spanning sunrise to sunset — what replaced the
-   * "Sunrise 05:31 · Sunset 20:45" line that used to sit under the dial. Opt-in
-   * now rather than on by default: the face's own shading turns at those two
-   * instants, so this restates them rather than being the only record of them.
-   * See `loadShowSunArc` in `settings.ts` for the rest of that argument.
+   * The knob that scrubs the shading to another date — the whole of the year
+   * scale, and deliberately the only mark of it.
    *
-   * It lives in the corridor between the rim's painted outer edge (87.5) and the
-   * minute numerals' inner edge (91.5) — the only free band that still reads as
-   * part of the dial rather than as a detached ring. At width 0.2 it spans
-   * 88.4…88.6, which leaves 0.9 units of air inside it and 2.9 outside, and
-   * `visual.test.ts` pins it against both neighbours' *painted* edges rather than
-   * their nominal radii.
+   * 1 January sits at `angleForHour(0)`, the bottom of the dial, so the year and
+   * the day share an origin and the knob at New Year lines up with the midnight
+   * tick beneath it. That alignment is `year.ts`'s business, not this file's;
+   * nothing here knows a date.
    *
-   * **That air is the whole reason `minuteLabels.radius` moved out to 94.** An
-   * earlier attempt kept the band at 93, which left only 0.8 units either side:
-   * at a 375px viewport that is ~1.4px, and on screen the arc and the rim merged
-   * into a single doubled stroke that read as a rendering artefact rather than as
-   * a mark. Widening the gap fixed it where retuning the colour could not.
+   * **It had a track and twelve month marks, and both are gone.** The marks were
+   * the problem: months are 30 ± 1 days, so their twelve angles land within a
+   * degree of the twelve five-minute numerals just outside them, and on screen
+   * they read as ticks belonging to the minute scale rather than as a calendar.
+   * A second scale that is misread as a subdivision of the first is worse than no
+   * scale, and the track went with them — a rail with nothing on it says only
+   * "this thing travels", which the knob's own shape already says.
    *
-   * **A hairline, one fifth the rim's weight**, which is the opposite of where
-   * this started: it was 1.2 units, *heavier* than the rim so as not to be
-   * mistaken for one, and at that weight it read as a second silhouette anyway.
-   * Going the other way works because weight was never the signal that separates
-   * the two — the air between them is, and `--sun-arc` is a step brighter than
-   * the ink around it. Keep it finer than the rim; the way back is more
-   * separation, not more ink. Its ends are radial faces rather than round caps,
-   * so each marks an exact minute; a round cap would smear each end by half the
-   * width, which is the one thing this element exists to state precisely.
+   * `apex` is **on the rim's painted outer edge (87.5), touching it**, so the
+   * pointer reads as attached to the dial rather than as a speck floating beside
+   * it. That is also why the corridor's air is no longer load-bearing the way it
+   * was for the daylight arc that used to live here: the arc had to be seen as
+   * *separate* from the rim, and a hairline a unit away merged with it into a
+   * doubled silhouette. A filled triangle touching the rim cannot be mistaken for
+   * a second silhouette, so contact is safe here where proximity was not.
+   *
+   * Taller (2.1) than wide (1.8) deliberately — at a 375px viewport this is about
+   * 4px by 3px, and a shape that small reads as a pointer only while it is taller
+   * than it is broad. Apex inward because the knob points at the thing it steers,
+   * and the base takes the outward end where the room is: 1.9 units to the minute
+   * glyphs, which `visual.test.ts` pins.
+   *
+   * `hit` is the invisible target behind it, and deliberately not the knob's own
+   * outline: ±6° of arc is about 32px at that viewport, where the knob is 3. It
+   * is a wedge that travels with the knob rather than a band round the whole
+   * dial, so a stray tap near the edge cannot silently change the date.
    *
    * Themed for the same reason `minuteLabels.fill` is: out here the backdrop is
    * the page, not the day/night gradient, so a fixed tone would fight one of the
    * two themes. That makes it the third and last entry in the allowlist
    * `visual.test.ts` pins.
    */
-  sunArc: {
-    radius: 88.5,
-    width: 0.2,
-    color: 'var(--sun-arc)',
+  yearKnob: {
+    apex: 87.5,
+    base: 89.6,
+    halfBase: 0.9,
+    color: 'var(--year-knob)',
+    hit: { inner: 84, outer: 92.5, halfAngleDeg: 6 },
   },
 
   /**
@@ -308,8 +317,8 @@ export const VISUAL = {
     moment: { width: 1.2, past: 0.4, upcoming: 0.8, active: 1 },
     /**
      * The next boundary, drawn at full strength across the band. Same reasoning
-     * as `sunArc`'s radial faces: the edge states the instant precisely, the
-     * fill only states the shape of the day.
+     * as the daylight arc's radial faces once did: the edge states the instant
+     * precisely, the fill only states the shape of the day.
      */
     boundary: { width: 0.9 },
     /**
