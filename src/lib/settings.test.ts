@@ -79,9 +79,9 @@ describe('the stored year-knob preference', () => {
     expect(loadShowYearKnob()).toBe(false);
   });
 
-  it('reads as off rather than throwing when storage is unavailable', () => {
+  it('reads as on rather than throwing when storage is unavailable', () => {
     vi.stubGlobal('localStorage', throwingStorage());
-    expect(loadShowYearKnob()).toBe(false);
+    expect(loadShowYearKnob()).toBe(true);
   });
 
   it('does not throw when storage writes fail', () => {

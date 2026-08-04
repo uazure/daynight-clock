@@ -78,7 +78,7 @@ npm run preview     # serve dist/
 ```
 
 CI (`.github/workflows/deploy.yml`) runs lint → typecheck → test → build → deploy to
-Cloudflare Pages on every push to `master`, and on manual dispatch from any branch. Manual runs
+Cloudflare Pages on every push to `main`, and on manual dispatch from any branch. Manual runs
 go to a preview URL unless the `production` input is ticked. The workflow cannot create its own
 infrastructure: it needs a `daynight-clock` Pages project, the `CLOUDFLARE_API_TOKEN` and
 `CLOUDFLARE_ACCOUNT_ID` repository secrets, and any custom domain attached by hand.
@@ -290,6 +290,6 @@ consequences worth knowing:
 
 ## Current state
 
-`master` holds the rewrite (merged in PR #1) plus the day/night favicon and the
+`main` holds the rewrite (merged in PR #1) plus the day/night favicon and the
 hours-and-minutes dial. The 2013 canvas/jQuery version survives only in history. GitHub Pages
 should be set to "None" as its source so the old copy stops serving.

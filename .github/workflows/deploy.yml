@@ -2,7 +2,7 @@ name: Build and deploy
 
 on:
   push:
-    branches: [master, main]
+    branches: [main]
   workflow_dispatch:
     inputs:
       production:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 # Keyed per ref so a preview deploy on a feature branch cannot cancel a
-# production deploy on master.
+# production deploy on main.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
@@ -38,14 +38,14 @@ jobs:
 
       # Pages calls a deployment "production" when --branch matches the project's
       # configured production branch, so a manual production run has to claim
-      # `master` whatever branch the code actually came from. --commit-message
+      # `main` whatever branch the code actually came from. --commit-message
       # carries the real branch, keeping the deployments list honest.
       - name: Deploy to Cloudflare Pages
         id: deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TARGET_BRANCH: ${{ (github.event_name == 'push' || inputs.production) && 'master' || github.ref_name }}
+          TARGET_BRANCH: ${{ (github.event_name == 'push' || inputs.production) && 'main' || github.ref_name }}
           SOURCE_BRANCH: ${{ github.ref_name }}
         run: |
           npx --yes wrangler@4 pages deploy dist \
