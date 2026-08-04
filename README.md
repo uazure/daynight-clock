@@ -86,8 +86,9 @@ outside them and read as ticks belonging to the minute scale instead.
 
 Up to five times of your own can be shaded onto the face: a moment, like a
 wake-up, or a stretch of the day, like work — and a stretch may run past midnight.
-They are drawn in one warm accent, the only colour on the dial that is not the
-sun's doing, at four weights that say where you are in your day:
+They are drawn in the dial's own greys — a dark tint edged in light, so a mark
+reads over day and night alike — at four weights that say where you are in your
+day:
 
 | Weight             | What it is                                       |
 | ------------------ | ------------------------------------------------ |
@@ -95,6 +96,12 @@ sun's doing, at four weights that say where you are in your day:
 | quiet              | one that has not started yet                     |
 | stronger           | the part of the one in progress already elapsed   |
 | strongest          | the part of it still to come                     |
+
+**Stretches that overlap stack outward.** A 30-minute break inside a working day
+is drawn as its own band just outside the block it interrupts, rather than
+disappearing into it — the longest stretch takes the innermost band and shorter
+ones sit on top, the way a calendar nests one event inside another. A moment
+crosses every band, so an alarm inside a stretch is still readable against it.
 
 So the block you are inside visibly shrinks as the day goes on, and the seam
 between its two halves is where the hour hand is. Whichever boundary comes next is

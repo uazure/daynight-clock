@@ -12,6 +12,7 @@ import { useFullscreen } from './hooks/useFullscreen';
 import { useLocation } from './hooks/useLocation';
 import { useMarkers } from './hooks/useMarkers';
 import { useNow } from './hooks/useNow';
+import { useShowMarkers } from './hooks/useShowMarkers';
 import { useYearDrag } from './hooks/useYearDrag';
 import { useYearKnob } from './hooks/useYearKnob';
 import { deviceTimezone, isGuessed } from './lib/location';
@@ -36,6 +37,13 @@ import {
  */
 type Overlay = null | 'menu' | 'settings' | 'picker' | 'about' | 'markers';
 
+/**
+ * What the dial gets when the markers are switched off. A module constant, not
+ * an inline `[]`, so the reference is stable across renders and `Clock`'s
+ * `memo`ised children stay memoised while hidden.
+ */
+const NO_MARKERS: never[] = [];
+
 /** The sheets the settings sheet can open, and return from. */
 type SettingsChild = Extract<Overlay, 'picker' | 'markers'>;
 
@@ -44,6 +52,7 @@ export default function App() {
   const now = useNow();
   const fullscreen = useFullscreen();
   const [markers, setMarkers] = useMarkers();
+  const [showMarkers, setShowMarkers] = useShowMarkers();
   const [showYearKnob, setShowYearKnob] = useYearKnob();
   const [overlay, setOverlay] = useState<Overlay>(null);
   /**
@@ -224,7 +233,10 @@ export default function App() {
             profile={profile}
             timeZone={timeZone}
             events={events}
-            markers={markers}
+            // Hidden is a drawing decision, not a data one: the stored list is
+            // untouched, the markers sheet still edits it, and switching back
+            // on shows exactly what was there.
+            markers={showMarkers ? markers : NO_MARKERS}
             knobDay={showYearKnob ? { dayOfYear: shownDay, daysThisYear } : null}
             simulatedDate={simulatedDate}
             knobFocusVisible={knobFocusVisible}
@@ -263,12 +275,14 @@ export default function App() {
         <SettingsModal
           place={location.place}
           showYearKnob={showYearKnob}
+          showMarkers={showMarkers}
           markerCount={markers.length}
           // Set only while one of this sheet's own children is open or has just
           // closed back into it, which is what makes it a focus target.
           returningFrom={settingsChild}
           restoreFocusRef={overlayOrigin}
           onShowYearKnobChange={setShowYearKnob}
+          onShowMarkersChange={setShowMarkers}
           onOpenPicker={openFromSettings('picker')}
           onOpenMarkers={openFromSettings('markers')}
           onClose={close}

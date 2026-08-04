@@ -8,6 +8,8 @@ import { ModalSheet } from './ModalSheet';
 interface Props {
   place: Place;
   showYearKnob: boolean;
+  /** Whether the markers are drawn on the dial; the list itself is untouched by it. */
+  showMarkers: boolean;
   /** How many markers exist, so the row can say so without holding the list. */
   markerCount: number;
   /**
@@ -19,6 +21,7 @@ interface Props {
    */
   returningFrom?: 'picker' | 'markers' | null;
   onShowYearKnobChange: (next: boolean) => void;
+  onShowMarkersChange: (next: boolean) => void;
   /** Passed straight through — see `ModalSheet`'s own note on the prop. */
   restoreFocusRef?: RefObject<HTMLElement | null>;
   onOpenPicker: () => void;
@@ -60,10 +63,12 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
 export function SettingsModal({
   place,
   showYearKnob,
+  showMarkers,
   markerCount,
   returningFrom,
   restoreFocusRef,
   onShowYearKnobChange,
+  onShowMarkersChange,
   onOpenPicker,
   onOpenMarkers,
   onClose,
@@ -149,6 +154,18 @@ export function SettingsModal({
         <p className="settings-hint" id="markers-hint">
           Your own moments and stretches of the day — a wake-up, the end of work — shaded onto the face, with a
           countdown to the next one at the centre.
+        </p>
+        <label className="settings-row">
+          <input
+            type="checkbox"
+            checked={showMarkers}
+            aria-describedby="show-markers-hint"
+            onChange={(event) => onShowMarkersChange(event.currentTarget.checked)}
+          />
+          Show on the dial
+        </label>
+        <p className="settings-hint" id="show-markers-hint">
+          Off hides them and the countdown without deleting anything; your times are kept and come back as they were.
         </p>
       </div>
 

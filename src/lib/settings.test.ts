@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Marker } from './markers';
-import { loadMarkers, loadShowYearKnob, saveMarkers, saveShowYearKnob } from './settings';
+import {
+  loadMarkers,
+  loadShowMarkers,
+  loadShowYearKnob,
+  saveMarkers,
+  saveShowMarkers,
+  saveShowYearKnob,
+} from './settings';
 
 /** Minimal in-memory localStorage, enough for the one key this module uses. */
 function fakeStorage(): Storage {
@@ -81,6 +88,45 @@ describe('the stored year-knob preference', () => {
     vi.stubGlobal('localStorage', throwingStorage());
     expect(() => saveShowYearKnob(true)).not.toThrow();
     expect(() => saveShowYearKnob(false)).not.toThrow();
+  });
+});
+
+describe('the stored marker-visibility preference', () => {
+  it('defaults to shown when nothing is stored', () => {
+    // The inverse default of the year knob: markers exist only because the
+    // reader added them, so adding one must show it without a second step.
+    expect(loadShowMarkers()).toBe(true);
+  });
+
+  it('round-trips both choices through storage', () => {
+    for (const shown of [false, true, false]) {
+      saveShowMarkers(shown);
+      expect(loadShowMarkers()).toBe(shown);
+    }
+  });
+
+  it('stores the default as an absence, not a value', () => {
+    // Same trick as the year knob, mirrored: `shown` is the absence case, so a
+    // fresh install and a deliberate switch-on are the same state.
+    saveShowMarkers(false);
+    saveShowMarkers(true);
+    expect(localStorage.getItem('daynight.showMarkers')).toBeNull();
+  });
+
+  it('treats an unrecognised stored value as shown', () => {
+    localStorage.setItem('daynight.showMarkers', 'maybe');
+    expect(loadShowMarkers()).toBe(true);
+  });
+
+  it('reads as shown rather than throwing when storage is unavailable', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(loadShowMarkers()).toBe(true);
+  });
+
+  it('does not throw when storage writes fail', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(() => saveShowMarkers(true)).not.toThrow();
+    expect(() => saveShowMarkers(false)).not.toThrow();
   });
 });
 

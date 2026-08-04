@@ -73,6 +73,22 @@ export function toCartesian(radius: number, angleDeg: number): Point {
 const fmt = (n: number): string => n.toFixed(4);
 
 /**
+ * Path data for an open arc at one radius, from one angle to another.
+ *
+ * Open on purpose, which is why it exists beside `sectorPath`: a closed sector,
+ * stroked, outlines its radial faces too, and on the dial those read as marks
+ * of their own — a tick at an interval's start and end that nothing put there.
+ * Stroking this instead draws only the rail along the band.
+ */
+export function arcPath(radius: number, startAngleDeg: number, endAngleDeg: number): string {
+  const largeArc = Math.abs(endAngleDeg - startAngleDeg) > 180 ? 1 : 0;
+  const start = toCartesian(radius, startAngleDeg);
+  const end = toCartesian(radius, endAngleDeg);
+
+  return `M ${fmt(start.x)} ${fmt(start.y)} A ${radius} ${radius} 0 ${largeArc} 1 ${fmt(end.x)} ${fmt(end.y)}`;
+}
+
+/**
  * Path data for a wedge between two radii and two angles.
  * `innerRadius === 0` produces a pie slice through the origin.
  */

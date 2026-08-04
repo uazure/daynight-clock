@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   isMoment,
+  laneBand,
+  laneCount,
   MAX_LABEL_LENGTH,
   MAX_MARKERS,
   type Marker,
+  markerLanes,
   markerSpans,
   momentPhase,
   nextBoundary,
@@ -11,6 +14,7 @@ import {
   readoutLines,
   spanPhase,
 } from './markers';
+import { VISUAL } from './visual';
 
 const at = (hour: number, minute = 0) => hour * 60 + minute;
 const marker = (label: string, start: number, end: number | null = null): Marker => ({ label, start, end });
@@ -205,5 +209,150 @@ describe('the readout wording', () => {
 
   it('says "now" rather than "in 0m"', () => {
     expect(lines(marker('Work', at(9), at(18)), at(9)).detail).toBe('now');
+  });
+});
+
+describe('stacking overlapping markers into lanes', () => {
+  it('leaves markers that do not overlap on one lane', () => {
+    const lanes = markerLanes([marker('Work', at(9), at(17)), marker('Gym', at(18), at(19))]);
+    expect(lanes).toEqual([0, 0]);
+    expect(laneCount(lanes)).toBe(1);
+  });
+
+  it('puts a break inside work on the lane above it', () => {
+    // The case this exists for: the shorter, contained interval goes outward, so
+    // it reads as sitting on top of the block it interrupts.
+    const lanes = markerLanes([marker('Work', at(9), at(17)), marker('Break', at(12), at(12, 30))]);
+    expect(lanes).toEqual([0, 1]);
+    expect(laneCount(lanes)).toBe(2);
+  });
+
+  it('puts the longest interval innermost whatever order they arrive in', () => {
+    // Same two markers, listed the other way round: the lane each gets is decided
+    // by its length, not by its position in the array.
+    const lanes = markerLanes([marker('Break', at(12), at(12, 30)), marker('Work', at(9), at(17))]);
+    expect(lanes).toEqual([1, 0]);
+  });
+
+  it('stacks three nested intervals', () => {
+    const lanes = markerLanes([
+      marker('Day', at(8), at(20)),
+      marker('Work', at(9), at(17)),
+      marker('Break', at(12), at(12, 30)),
+    ]);
+    expect(lanes).toEqual([0, 1, 2]);
+    expect(laneCount(lanes)).toBe(3);
+  });
+
+  it('reuses a lane for intervals that only overlap something else', () => {
+    // Two breaks inside one working day do not overlap each other, so they share
+    // the lane above it rather than each taking one.
+    const lanes = markerLanes([
+      marker('Work', at(9), at(17)),
+      marker('Lunch', at(12), at(12, 30)),
+      marker('Tea', at(15), at(15, 15)),
+    ]);
+    expect(lanes).toEqual([0, 1, 1]);
+    expect(laneCount(lanes)).toBe(2);
+  });
+
+  it('treats touching intervals as not overlapping', () => {
+    // 09:00–12:00 and 12:00–17:00 share only the instant between them, and a
+    // half-open comparison is what keeps them on one lane.
+    const lanes = markerLanes([marker('AM', at(9), at(12)), marker('PM', at(12), at(17))]);
+    expect(lanes).toEqual([0, 0]);
+  });
+
+  it('sees the overlap when an interval wraps midnight', () => {
+    // Asleep 23:00–07:00 is both ends of the dial, so an alarm-to-shower block at
+    // 06:30–07:15 overlaps its early half even though the numbers do not suggest it.
+    const lanes = markerLanes([marker('Asleep', at(23), at(7)), marker('Waking', at(6, 30), at(7, 15))]);
+    expect(laneCount(lanes)).toBe(2);
+    // The wrapping interval covers 8h against 45m, so it takes the inner lane.
+    expect(lanes).toEqual([0, 1]);
+  });
+
+  it('counts both halves of a wrapping interval when ranking length', () => {
+    // 23:00–07:00 is 8 hours in two pieces; a 6-hour daytime block must not
+    // out-rank it just because its single span is longer than either half.
+    const lanes = markerLanes([marker('Midday', at(9), at(15)), marker('Asleep', at(23), at(7))]);
+    expect(lanes[1]).toBe(0);
+  });
+
+  it('keeps moments off the lanes entirely', () => {
+    // A moment draws across every lane, so it is never placed on one — and never
+    // pushes an interval outward either.
+    const lanes = markerLanes([marker('Alarm', at(12)), marker('Work', at(9), at(17))]);
+    expect(lanes).toEqual([0, 0]);
+    expect(laneCount(lanes)).toBe(1);
+  });
+
+  it('answers a lane for every marker it was given', () => {
+    for (const list of [[], [marker('A', at(1))], [marker('A', at(1), at(2)), marker('B', at(1), at(3))]]) {
+      expect(markerLanes(list)).toHaveLength(list.length);
+    }
+    expect(laneCount([])).toBe(0);
+  });
+
+  it('never needs more lanes than there are markers', () => {
+    // Five mutually overlapping intervals is the worst case a reader can build.
+    const all = Array.from({ length: MAX_MARKERS }, (_, i) => marker(`M${i}`, at(9), at(17) - i));
+    expect(laneCount(markerLanes(all))).toBeLessThanOrEqual(MAX_MARKERS);
+  });
+});
+
+describe('the radii a lane is drawn at', () => {
+  const { markers: M } = VISUAL;
+
+  it('leaves a single lane exactly where the band has always been', () => {
+    // No overlaps must mean no visible change at all for an existing reader.
+    expect(laneBand(0, 1)).toEqual({ inner: M.inner, outer: M.outer });
+  });
+
+  it('stacks lanes outward with air between them', () => {
+    const first = laneBand(0, 2);
+    const second = laneBand(1, 2);
+    expect(first.inner).toBe(M.inner);
+    expect(second.inner - first.outer).toBeCloseTo(M.laneGap, 9);
+    expect(second.outer).toBeGreaterThan(first.outer);
+  });
+
+  it('never reaches past the bound that protects the hour numerals', () => {
+    // The load-bearing one: past `maxOuter` the wedges tint the numerals'
+    // backdrop and every contrast ratio measured for them stops being true.
+    for (let count = 1; count <= MAX_MARKERS; count += 1) {
+      for (let lane = 0; lane < count; lane += 1) {
+        const band = laneBand(lane, count);
+        expect(band.inner).toBeGreaterThanOrEqual(M.inner);
+        expect(band.outer).toBeLessThanOrEqual(M.maxOuter + 1e-9);
+        expect(band.outer).toBeGreaterThan(band.inner);
+      }
+    }
+  });
+
+  it('shrinks lane height only once the full height stops fitting', () => {
+    const full = M.outer - M.inner;
+    const heightAt = (count: number) => laneBand(0, count).outer - laneBand(0, count).inner;
+    expect(heightAt(1)).toBeCloseTo(full, 9);
+    expect(heightAt(2)).toBeCloseTo(full, 9);
+    // By five lanes the band has to give, and every lane gives equally.
+    expect(heightAt(MAX_MARKERS)).toBeLessThan(full);
+    for (let lane = 1; lane < MAX_MARKERS; lane += 1) {
+      const band = laneBand(lane, MAX_MARKERS);
+      expect(band.outer - band.inner).toBeCloseTo(heightAt(MAX_MARKERS), 9);
+    }
+  });
+
+  it('keeps every lane thick enough to see', () => {
+    // ~1.7px per unit at a 375px viewport, so anything under ~1.5 units is a
+    // hairline pretending to be a band.
+    for (let count = 1; count <= MAX_MARKERS; count += 1) {
+      const band = laneBand(0, count);
+      expect(band.outer - band.inner).toBeGreaterThan(1.5);
+    }
+  });
+
+  it('treats a zero count as one lane rather than dividing by it', () => {
+    expect(laneBand(0, 0)).toEqual(laneBand(0, 1));
   });
 });

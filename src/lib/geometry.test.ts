@@ -3,6 +3,7 @@ import {
   angleForHour,
   angleForMinute,
   angleForPoint,
+  arcPath,
   normalizeAngle,
   radiusForPoint,
   sectorPath,
@@ -149,5 +150,28 @@ describe('sectorPath', () => {
   it('sets the large-arc flag only past 180 degrees', () => {
     expect(sectorPath(0, 100, 0, 179)).toContain('A 100 100 0 0 1');
     expect(sectorPath(0, 100, 0, 181)).toContain('A 100 100 0 1 1');
+  });
+});
+
+describe('arcPath', () => {
+  it('runs from the start angle to the end angle at one radius', () => {
+    const d = arcPath(100, 0, 30);
+    const start = toCartesian(100, 0);
+    const end = toCartesian(100, 30);
+    expect(d.startsWith(`M ${start.x.toFixed(4)} ${start.y.toFixed(4)}`)).toBe(true);
+    expect(d.endsWith(`${end.x.toFixed(4)} ${end.y.toFixed(4)}`)).toBe(true);
+  });
+
+  it('stays open — no closure, no radial line', () => {
+    // The reason it exists beside `sectorPath`: a closed sector, stroked,
+    // outlines its radial faces too, and those read as marks of their own.
+    const d = arcPath(100, 0, 30);
+    expect(d).not.toContain('Z');
+    expect(d).not.toContain('L');
+  });
+
+  it('sets the large-arc flag only past 180 degrees', () => {
+    expect(arcPath(100, 0, 179)).toContain('A 100 100 0 0 1');
+    expect(arcPath(100, 0, 181)).toContain('A 100 100 0 1 1');
   });
 });

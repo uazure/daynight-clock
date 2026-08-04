@@ -21,6 +21,7 @@ import { type Marker, parseMarkers } from './markers';
 
 const YEAR_KNOB_KEY = 'daynight.showYearKnob';
 const MARKERS_KEY = 'daynight.markers';
+const SHOW_MARKERS_KEY = 'daynight.showMarkers';
 
 /**
  * Whether the year knob is drawn, and with it the date it can simulate.
@@ -53,6 +54,42 @@ export function saveShowYearKnob(showYearKnob: boolean): void {
       localStorage.setItem(YEAR_KNOB_KEY, 'true');
     } else {
       localStorage.removeItem(YEAR_KNOB_KEY);
+    }
+  } catch {
+    // ignored: the choice still applies for this session
+  }
+}
+
+/**
+ * Whether the reader's markers are drawn on the dial at all.
+ *
+ * **On by default** — the inverse of the year knob, because the two defaults
+ * answer different questions. Markers exist only because the reader added them,
+ * so adding one has to show it without a second step; a switch that started
+ * off would make the markers sheet look broken. What this setting offers is the
+ * other direction: a way to quiet the dial without deleting anything —
+ * `loadMarkers` is untouched by it, so hiding and showing lose nothing.
+ *
+ * `true` is therefore the absence case — `saveShowMarkers(true)` removes the
+ * key rather than writing it, so a fresh install and a deliberate switch-on are
+ * the same state and a later change of default needs no migration.
+ */
+export function loadShowMarkers(): boolean {
+  try {
+    // Only the exact string 'false' hides; absent, junk, or a hand-edited
+    // 'true' all read as shown.
+    return localStorage.getItem(SHOW_MARKERS_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+export function saveShowMarkers(showMarkers: boolean): void {
+  try {
+    if (showMarkers) {
+      localStorage.removeItem(SHOW_MARKERS_KEY);
+    } else {
+      localStorage.setItem(SHOW_MARKERS_KEY, 'false');
     }
   } catch {
     // ignored: the choice still applies for this session

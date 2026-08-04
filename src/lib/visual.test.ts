@@ -110,8 +110,18 @@ describe("the reader's markers", () => {
     // against. Let the band past the numerals' glyph edge and every contrast
     // ratio in this file and in styles.css becomes a claim about an untinted
     // face that is no longer true.
+    // `maxOuter` and not `outer` is the bound that matters: `outer` is one lane's
+    // height, and overlapping markers stack outward until they reach `maxOuter`.
+    // `laneBand` in `markers.ts` is what lands them on it exactly; this is what
+    // keeps that landing place inside the numerals.
     expect(markers.inner).toBeLessThan(markers.outer);
-    expect(markers.outer).toBeLessThanOrEqual(hourLabels.radius - glyphReach(hourLabels.size, hourLabels.outlineWidth));
+    expect(markers.outer).toBeLessThanOrEqual(markers.maxOuter);
+    expect(markers.maxOuter).toBeLessThanOrEqual(
+      hourLabels.radius - glyphReach(hourLabels.size, hourLabels.outlineWidth),
+    );
+    // Without air between them two stacked wedges of one phase read as one wedge,
+    // which is the whole thing lanes exist to prevent.
+    expect(markers.laneGap).toBeGreaterThan(0);
   });
 
   it('clears the corners of the readout box, not just its radius', () => {
@@ -156,7 +166,11 @@ describe("the reader's markers", () => {
     // It is the one thing the countdown is counting down to, so nothing else
     // among the markers may out-weigh it.
     expect(markers.boundary.width).toBeGreaterThanOrEqual(markers.moment.width * 0.5);
-    expect(markers.readout.detail.size).toBeGreaterThan(markers.readout.label.size);
+    // The duration is the thing being read, so it may not be quieter than the
+    // label naming it. Weight carries that now rather than size: the two lines are
+    // set at the same size, and weight is what separates them.
+    expect(markers.readout.detail.size).toBeGreaterThanOrEqual(markers.readout.label.size);
+    expect(markers.readout.detail.weight).toBeGreaterThan(markers.readout.label.weight);
   });
 });
 
@@ -279,35 +293,46 @@ describe('the dial palette', () => {
     expect(themed.map((leaf) => leaf.path).sort()).toEqual(['face.rim.color', 'minuteLabels.fill', 'yearKnob.color']);
   });
 
-  it('keeps every literal colour on the palette hue, bar the pinned accent', () => {
+  it('keeps every literal colour on the palette hue, with no exceptions', () => {
     // Saturation deliberately varies — 12% for the ramp and the ink, 14% for
-    // the hand core — but a stray hue would break the monochrome scale. Matches
-    // `hsla(` as well as `hsl(`, so a change of spelling cannot dodge the check.
+    // the hand core — but a stray hue would break the monochrome scale. The
+    // markers used to be the one pinned exception, on an accent hue; they now
+    // separate by inversion instead (see the marker-ink tests below), so the
+    // whole dial is on one hue and a second one has to be argued for here first.
+    // Matches `hsla(` as well as `hsl(`, so a change of spelling cannot dodge
+    // the check.
     const literals = colours.filter((leaf) => String(leaf.value).startsWith('hsl'));
     expect(literals.length).toBeGreaterThan(0);
     for (const { path, value } of literals) {
-      const allowed = path === 'markers.accent' ? palette.accentHue : palette.hue;
-      expect(hueOf(String(value)), path).toBe(allowed);
+      expect(hueOf(String(value)), path).toBe(palette.hue);
     }
   });
 
-  it("spends the accent hue on the reader's markers and nothing else", () => {
-    // Exact equality, like the themed-token check above and for the same reason:
-    // the accent exists to say "this mark is yours, not the sun's", and it can
-    // only say that while it is the one thing wearing it. A second use has to be
-    // argued for here first.
-    const accented = colours
-      .filter((leaf) => String(leaf.value).startsWith('hsl') && hueOf(String(leaf.value)) === palette.accentHue)
-      .map((leaf) => leaf.path);
-    expect(accented).toEqual(['markers.accent']);
+  it('spans the ramp with the marker pair, like the numeral inks do', () => {
+    // The marks have to survive a ramp running L96% to L5%, and no single tone
+    // can: dark over daylight is light over night. So every mark carries both —
+    // a `core` fill under a `halo` edge, the hands' recipe — and whichever
+    // sector it crosses, one half of the pair is far from the face behind it.
+    // That only holds while the pair brackets the ramp, which is what these
+    // bounds pin.
+    const core = lightnessOf(markers.core);
+    const halo = lightnessOf(markers.halo);
+    expect(markers.core).not.toBe(markers.halo);
+    expect(halo - core).toBeGreaterThanOrEqual(60);
+    expect(core).toBeLessThan(palette.band.min + 15);
+    expect(halo).toBeGreaterThan(palette.band.max - 15);
   });
 
-  it('puts the accent well away from the palette hue on the wheel', () => {
-    // Close hues read as a bad match rather than as a distinction, and the
-    // distinction is the entire job: half a wheel apart, nothing on the face can
-    // be mistaken for a marker.
-    const apart = Math.abs(palette.accentHue - palette.hue) % 360;
-    expect(Math.min(apart, 360 - apart)).toBeGreaterThan(120);
+  it('orders the edge opacities the way the wedge fills are ordered', () => {
+    // Over the night sector the core fill is dark on dark and the halo edge is
+    // the entire mark, so the edge has to carry the same past → remaining
+    // ranking the fills do — or the two halves of the dial would disagree
+    // about which marker is loudest.
+    const { past, upcoming, active, remaining } = markers.edge;
+    expect(past).toBeLessThan(upcoming);
+    expect(upcoming).toBeLessThan(active);
+    expect(active).toBeLessThan(remaining);
+    expect(remaining).toBeLessThanOrEqual(1);
   });
 
   it('maps lightness onto an ordered band inside HSL range', () => {

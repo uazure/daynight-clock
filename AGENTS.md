@@ -149,11 +149,11 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    theme-independent, and the only three `var(--…)` exceptions paint on or outside the face's
    edge, where the backdrop really is the page — the rim, the year knob, the minute band.
    `visual.test.ts` pins that split by exact equality, so a fourth has to be argued for.
-   **The face is also one hue, `palette.hue`, with exactly one exception**: `markers.accent`
-   on `palette.accentHue`, because the reader's own times are the one thing on the dial that
-   is not the sun's doing and hue is what says so. Pinned the same way, by exact path.
-   A saturated accent is also the only kind of mark that reads over both ends of the
-   lightness ramp — no single tone can, which is why this is a hue and not a tint.
+   **The face is also one hue, `palette.hue`, with no exceptions.** The reader's markers
+   used to be the pinned exception, on an accent hue, because no single tone reads over
+   both ends of the lightness ramp. They now carry both tones instead — a `markers.core`
+   fill under a `markers.halo` edge, the hands' recipe — so the dark half of the pair
+   reads over daylight and the light half over night. Pinned the same way, by exact hue.
 6. **Keep `cities.json` behind a dynamic `import()`.** A static import puts ~155 KB into
    the initial bundle.
 7. **Don't hand-edit `src/data/*.json`** and don't wire `scripts/build-cities.mjs` into
@@ -202,19 +202,28 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    survived because `sun.test.ts` allowed 10 minutes against suncalc's own `getTimes` and
    blamed the gap on "different solar models" — there is no second model, both sides come
    from `getPosition`. The tolerances are 1 min and 0.1 min now; don't loosen them.
-14. **Nothing the markers draw may reach past `markers.outer` (59).** Everything the dial is
-   read *against* — the hour numerals, the ticks, the rim, both ink flips — lives outside
+14. **Nothing the markers draw may reach past `markers.maxOuter` (59).** Everything the dial
+   is read *against* — the hour numerals, the ticks, the rim, both ink flips — lives outside
    that radius, so a tinted wedge can never become part of a backdrop one of those contrast
    ratios was measured against. Widen the band past the numerals' glyph edge and every ratio
    in `styles.css` and in `visual.ts` silently becomes a claim about an untinted face.
-   `visual.test.ts` pins that bound, and with it the readout box whose corners set
-   `markers.inner` from the inside.
+   The bound is `maxOuter` rather than `outer` because overlapping markers stack outward in
+   lanes: `outer` is one lane's height, and `laneBand` shrinks that height so the outermost
+   lane lands on `maxOuter` exactly however many lanes there are. `visual.test.ts` pins the
+   bound, `markers.test.ts` pins the landing, and between them sits the readout box whose
+   corners set `markers.inner` from the inside.
 15. **Two translucent wedges of the same marker phase must never overlap.** They would
    composite to an opacity nothing in `visual.ts` names, and the reader would try to read
-   meaning into the third shade. `MarkerWedges` emits **one path per phase** with every span
-   as a subpath, so a fill happens once however many markers cross; and it *splits* the block
-   in progress at `now` rather than laying `remaining` over `active`. Adding a phase means
-   adding a path, not a `<g opacity>`.
+   meaning into the third shade. Three things hold that line: `MarkerWedges` emits **one path
+   per phase** with every span as a subpath, so a fill happens once however many markers
+   cross; it *splits* the block in progress at `now` rather than laying `remaining` over
+   `active`; and `markerLanes` gives markers that share minutes **different radii**, so they
+   cannot overlap at all. Adding a phase means adding a path, not a `<g opacity>`.
+   Note the lane rule is also what makes a contained interval *visible* — a 30-minute break
+   inside a work block was previously indistinguishable from the work, precisely because the
+   fill happens once. Longest interval innermost, shorter ones stacking outward, is the order
+   a reader expects. Moments are exempt: they draw across every lane, which is what makes an
+   instant readable against the intervals it falls inside.
 16. **The simulated date may reach the dial as shading and as nothing else.** The year knob
    is opt-in and off by default, and switching it off returns the dial to today — `App` reads
    that through one derived `activeDay` rather than resetting in the settings handler, so the
