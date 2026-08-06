@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { type RefObject, useRef } from 'react';
 import type { Fullscreen } from '../hooks/useFullscreen';
 import { ModalSheet } from './ModalSheet';
 
@@ -22,19 +22,26 @@ interface Props {
  * which leaves a one-item menu there rather than a control that does nothing.
  */
 export function MainMenu({ fullscreen, restoreFocusRef, onOpenSettings, onOpenAbout, onClose }: Props) {
+  const firstItemRef = useRef<HTMLButtonElement>(null);
+
   return (
     <ModalSheet
       labelledBy="menu-title"
+      title="Menu"
       onClose={onClose}
+      // The one sheet that names its own landing place rather than taking the
+      // dialog default: opening a menu and being handed the menu, with a Tab
+      // still to go before the first item, is a step no other sheet asks for.
+      initialFocusRef={firstItemRef}
       restoreFocusRef={restoreFocusRef}
+      // Also what suppresses the close control the dialogs get: a menu is
+      // dismissed by choosing from it, and a Close row under two items would be
+      // a third item doing what Escape and the backdrop already do.
       placement="anchor-start"
       sheetClassName="sheet-menu"
-      dismissOnScrim
     >
-      <h2 id="menu-title">Menu</h2>
-
       <div className="menu-items">
-        <button type="button" onClick={onOpenSettings}>
+        <button ref={firstItemRef} type="button" onClick={onOpenSettings}>
           Settings…
         </button>
 

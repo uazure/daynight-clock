@@ -62,9 +62,10 @@ const toMarkers = (drafts: Draft[]): Marker[] =>
  * *Add* button is removed rather than disabled: a disabled button matches
  * `ModalSheet`'s `FOCUSABLE_SELECTOR` without being a tab stop, which is exactly
  * how the focus trap leaked when the theme was a radio group (AGENTS.md rule 9).
- * For the same reason *Close* stays last in the DOM, so a `<input type="time">`
- * — whose internal segments browsers disagree about tabbing between — is never
- * the trap's first or last element.
+ * The same concern used to be why *Close* was written last in this file; it is
+ * now `ModalSheet` that renders the action row last, which keeps an
+ * `<input type="time">` — whose internal segments browsers disagree about
+ * tabbing between — off the trap's ends here without this sheet arranging it.
  *
  * Its own sheet rather than a fourth section of the settings sheet: five rows of
  * three controls is a form, and it would have buried the two single choices above
@@ -91,9 +92,7 @@ export function MarkersModal({ markers, restoreFocusRef, onChange, onClose }: Pr
   };
 
   return (
-    <ModalSheet labelledBy="markers-title" onClose={onClose} restoreFocusRef={restoreFocusRef} dismissOnScrim>
-      <h2 id="markers-title">Your times</h2>
-
+    <ModalSheet labelledBy="markers-title" title="Your times" onClose={onClose} restoreFocusRef={restoreFocusRef}>
       <p className="settings-hint markers-lead">
         Up to {MAX_MARKERS}. Leave the second time empty for a single moment rather than a stretch of the day; a stretch
         may run past midnight.
@@ -148,12 +147,6 @@ export function MarkersModal({ markers, restoreFocusRef, onChange, onClose }: Pr
       ) : (
         <p className="settings-hint">That is all {MAX_MARKERS}. Remove one to add another.</p>
       )}
-
-      <div className="sheet-actions">
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
-      </div>
     </ModalSheet>
   );
 }

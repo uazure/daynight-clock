@@ -46,6 +46,14 @@ the build itself has no OS dependencies, though development here happens on Wind
 - **Location is a resolver chain**, most-trusted first: a manually chosen city, a coarse
   geolocation fix, a guess from the device zone, a rougher guess from the UTC offset,
   then `0,0`. Each tier is labelled honestly in the UI.
+- **The build stamps itself.** `vite.config.ts` `define`s the package version, the commit
+  (`GITHUB_SHA`, else `git rev-parse`, else empty) and an ISO build date; `src/lib/build.ts`
+  reads them back and *What is this?* shows the line. A build with no git behind it says so
+  rather than linking to a 404. The service worker is `autoUpdate`, so the version a reader
+  sees is the bundle actually running — which is what makes it worth quoting in a bug report.
+  **The patch number is the pull request that shipped it**, not a semver count: 0.0.10 came
+  from PR #10. Bump it in the PR itself, so the version a reader quotes leads straight to the
+  change and its discussion.
 - **City data is generated and committed**, not fetched: `cities.json` (3,058 cities) is
   code-split behind a dynamic `import()`; `timezone-coords.json` (356 zones) is bundled
   because the resolver needs it on the first frame.
@@ -54,9 +62,9 @@ the build itself has no OS dependencies, though development here happens on Wind
 
 ```
 src/lib/         pure logic + colocated *.test.ts (time, sun, lightness, visual, dial,
-                 geometry, year, location, cities, theme, settings, markers)
+                 geometry, year, location, cities, theme, settings, markers, build)
 src/hooks/       useNow, useDayProfile, useLocation, useTheme, useMarkers,
-                 useFullscreen, useYearKnob, useYearDrag
+                 useFullscreen, useYearKnob, useYearDrag, useNarrowViewport
 src/components/  Clock + dial parts (incl. YearKnob, MarkerWedges, MarkerReadout),
                  YearSlider, LocationPanel, ModalSheet and its five sheets (MainMenu,
                  SettingsModal, CityPickerModal, MarkersModal, AboutModal)
@@ -69,7 +77,7 @@ scripts/         build-cities.mjs, run by hand, never part of the build
 ```bash
 npm install
 npm run dev         # http://localhost:5173
-npm test            # vitest run — 219 tests, ~4s
+npm test            # vitest run — 312 tests, ~3s
 npm run typecheck   # tsc -b
 npm run lint        # biome check — lint, format and import order, read-only
 npm run lint:fix    # biome check --write — applies all three
@@ -254,6 +262,28 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    `aria-valuetext` carries the date, or it announces "216". Focus it on `pointerup` and
    never on `pointerdown`: a focused slider announces every one of a drag's hundreds of
    values.
+19. **A sheet is three rows — header, one scrolling body, actions — and only the body may
+   scroll.** `ModalSheet` renders all three, including the heading and the close control, so
+   a caller cannot put chrome inside the scrolled region: when `.sheet` was itself the
+   scroller, the settings sheet on a phone pushed *Close* below the fold and it could only be
+   reached by scrolling down to it. The mobile `margin-top: auto` meant to pin it collapses
+   the moment content overflows, which is the one case it existed for. `overflow: hidden` on
+   `.sheet` plus `min-height: 0` on `.sheet-body` is what holds it; the safe-area insets are
+   applied per row, because the two rows that must stay put are the two against the notch and
+   the home indicator.
+20. **One close control exists at a time, and JS decides which.** *Close* on the action row
+   below 40rem, an X in the header above it — chosen by `useNarrowViewport`, never by hiding
+   one in CSS. A `display: none` control still matches `FOCUSABLE_SELECTOR` without being a
+   tab stop, which is rule 9's bug wearing a different hat. The breakpoint is duplicated in
+   that hook and in styles.css and the two must agree. The anchored menu has no close control
+   at all: it is a popover, dismissed by choosing from it.
+21. **Focus lands on the sheet itself, not on its first control.** `ModalSheet` gives the
+   dialog `tabindex="-1"` and focuses it, so a screen reader announces the dialog and its
+   title; `initialFocusRef` is for the cases where a specific control *is* the reason the
+   sheet opened (the picker's search field, the menu's first item, the button a child sheet
+   returns to). "First focusable" was the old default and it is a moving target — it became
+   the X when the close control arrived, and the commit link when the build stamp was added
+   to *What is this?*.
 
 ## Testing conventions
 

@@ -54,15 +54,16 @@ export function CityPickerModal({
   return (
     <ModalSheet
       labelledBy="picker-title"
+      title="Change location"
       onClose={onClose}
       initialFocusRef={searchRef}
       restoreFocusRef={restoreFocusRef}
-      dismissOnScrim
+      // The scrolling body *is* this sheet's layout column. A wrapper inside it
+      // would be a second height for the results list to flex against, and on a
+      // phone the list has to flex against the sheet's own.
+      bodyClassName="picker-body"
     >
-      <h2 id="picker-title">Change location</h2>
-
-      <div className="picker-body">
-        {/*
+      {/*
           The note is not decoration: rule 4 is that a geolocation request never
           happens without the accuracy-and-privacy line visible *beside* the
           control that triggers it, and this is the only such control left in the
@@ -70,76 +71,69 @@ export function CityPickerModal({
           the objection someone has at the moment of deciding, so it belongs where
           the decision is made rather than in a dialog read before it.
         */}
-        {canLocate && (
-          <div className="picker-locate">
-            <button
-              type="button"
-              onClick={() => {
-                onUseDeviceLocation();
-                onClose();
-              }}
-            >
-              Use my location
-            </button>
-            <p className="sheet-note">Rounded to about a kilometre, and it never leaves this device.</p>
-          </div>
-        )}
+      {canLocate && (
+        <div className="picker-locate">
+          <button
+            type="button"
+            onClick={() => {
+              onUseDeviceLocation();
+              onClose();
+            }}
+          >
+            Use my location
+          </button>
+          <p className="sheet-note">Rounded to about a kilometre, and it never leaves this device.</p>
+        </div>
+      )}
 
-        {/*
+      {/*
           The way back to the default, and the only one that asks the browser for
           nothing — *Use my location* above also clears a chosen city, but at the
           price of a geolocation fix. Named for what it does rather than "Reset":
           the zone in the label is what the dial will actually run on, which is
           the one thing worth knowing before pressing it.
         */}
-        {canReset && (
-          <button
-            type="button"
-            onClick={() => {
-              onUseTimezone();
-              onClose();
-            }}
-          >
-            Use my timezone ({zone})
-          </button>
-        )}
-
-        <label className="field">
-          <span>Or pick a city</span>
-          <input
-            ref={searchRef}
-            type="search"
-            value={query}
-            placeholder="Start typing a city name"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
-
-        {!cities && <p className="muted">Loading cities…</p>}
-
-        <ul className="results">
-          {results.map((city) => (
-            <li key={`${city.name}-${city.country}-${city.lat}`}>
-              <button
-                type="button"
-                onClick={() => {
-                  onChooseCity(city);
-                  onClose();
-                }}
-              >
-                {city.name}, {city.country}
-                {offsetsDiffer(city.tz, zone) && <span className="muted"> — {utcOffsetLabel(city.tz)}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="sheet-actions">
-        <button type="button" onClick={onClose}>
-          Close
+      {canReset && (
+        <button
+          type="button"
+          onClick={() => {
+            onUseTimezone();
+            onClose();
+          }}
+        >
+          Use my timezone ({zone})
         </button>
-      </div>
+      )}
+
+      <label className="field">
+        <span>Or pick a city</span>
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          placeholder="Start typing a city name"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
+
+      {!cities && <p className="muted">Loading cities…</p>}
+
+      <ul className="results">
+        {results.map((city) => (
+          <li key={`${city.name}-${city.country}-${city.lat}`}>
+            <button
+              type="button"
+              onClick={() => {
+                onChooseCity(city);
+                onClose();
+              }}
+            >
+              {city.name}, {city.country}
+              {offsetsDiffer(city.tz, zone) && <span className="muted"> — {utcOffsetLabel(city.tz)}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
     </ModalSheet>
   );
 }

@@ -1,11 +1,52 @@
 /// <reference types="vitest/config" />
 
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+
+/**
+ * The commit the bundle was built from, for the line in *What is this?*.
+ *
+ * `GITHUB_SHA` first because CI's checkout is a detached HEAD at `fetch-depth: 1`
+ * — `rev-parse` still answers there, but the env var is the same value the deploy
+ * step already stamps onto the Pages deployment, so the two cannot disagree.
+ * Anything that is not a git checkout at all (a source tarball) falls through to
+ * the empty string, and the UI drops the link rather than showing a hash it made
+ * up. `execFileSync`, not `execSync`: no argument here reaches a shell.
+ */
+function commitHash(): string {
+  if (process.env.GITHUB_SHA) {
+    return process.env.GITHUB_SHA;
+  }
+
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return '';
+  }
+}
+
 export default defineConfig({
   base: './',
+  /*
+   * Inlined at build time, and read back through `src/lib/build.ts`. Evaluated
+   * once when this config loads, so under `vite dev` the date is when the dev
+   * server started — which is the honest answer to "what is this build" there.
+   *
+   * Worth knowing when reading a version off a running app: the service worker
+   * registers as `autoUpdate`, so what a reader sees is the version of the bundle
+   * actually executing, not the newest one deployed. That is what makes it useful
+   * in a bug report.
+   */
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    __COMMIT_HASH__: JSON.stringify(commitHash()),
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({
