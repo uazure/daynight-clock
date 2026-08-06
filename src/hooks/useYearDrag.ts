@@ -62,6 +62,8 @@ export function useYearDrag(
   const pointerId = useRef<number | null>(null);
   const grabOffsetDeg = useRef(0);
   const lastDay = useRef(dayOfYear);
+  /** Removes the drag's `touchmove` blocker — see `onPointerDown`. */
+  const unblockScroll = useRef<(() => void) | null>(null);
 
   /** Client coordinates to the dial's own user units. */
   const toLocal = useCallback((clientX: number, clientY: number) => {
@@ -96,6 +98,8 @@ export function useYearDrag(
       }
       pointerId.current = null;
       inverse.current = null;
+      unblockScroll.current?.();
+      unblockScroll.current = null;
       setDragging(false);
       onCommit?.();
     },
@@ -123,6 +127,20 @@ export function useYearDrag(
       // Retargets every later event for this pointer here, so a finger that
       // leaves the knob — immediately, given its size — keeps driving the drag.
       event.currentTarget.setPointerCapture(event.pointerId);
+
+      // The grab target's `touch-action: none` should already keep the browser
+      // from claiming this gesture as a scroll, but mobile Safari does not
+      // honour it on inner SVG elements: ~10px into a drag it decides the
+      // finger is scrolling, fires `pointercancel`, and the knob freezes on
+      // the first day it reached. Blocking `touchmove` outright is the version
+      // every engine respects. Attached synchronously rather than from an
+      // effect, because the scroll-versus-drag decision can be made before an
+      // effect runs; removed in `end`, so scrolling and pinch-zoom are only
+      // ever suppressed while a finger is actually dragging the knob.
+      const block = (touch: TouchEvent) => touch.preventDefault();
+      unblockScroll.current?.();
+      document.addEventListener('touchmove', block, { passive: false });
+      unblockScroll.current = () => document.removeEventListener('touchmove', block);
       grabOffsetDeg.current = normalizeAngle(angleForPoint(local) - angleForDayOfYear(dayOfYear, total));
       lastDay.current = dayOfYear;
       setDragging(true);
