@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import { BUILD, commitUrl, formatBuildDate, shortCommit } from '../lib/build';
 import { ModalSheet } from './ModalSheet';
 
 interface Props {
@@ -22,10 +23,10 @@ interface Props {
  * covering the clock to talk about it is the wrong trade.
  */
 export function AboutModal({ restoreFocusRef, onClose }: Props) {
-  return (
-    <ModalSheet labelledBy="about-title" onClose={onClose} restoreFocusRef={restoreFocusRef} dismissOnScrim>
-      <h2 id="about-title">What is this?</h2>
+  const url = commitUrl(BUILD.commit);
 
+  return (
+    <ModalSheet labelledBy="about-title" title="What is this?" onClose={onClose} restoreFocusRef={restoreFocusRef}>
       <p>
         This is a clock with a 24-hour face: the hour hand goes round once a day instead of twice, so every hour of the
         day has its own place on the dial.
@@ -39,11 +40,30 @@ export function AboutModal({ restoreFocusRef, onClose }: Props) {
         So a glance shows you the whole day at once: how much daylight is left, and how far through the night you are.
       </p>
 
-      <div className="sheet-actions">
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
-      </div>
+      {/*
+        Which build this is, for a bug report. Last and quiet: nobody opens this
+        sheet for it, and the four sentences above are what the sheet is for.
+
+        The hash links to the commit — the app's only outbound link, and still no
+        runtime *network call*, so the "no server, no analytics" non-goals hold.
+        A build with no git behind it links to nothing rather than to a 404.
+      */}
+      <p className="sheet-note build-info">
+        Version {BUILD.version}
+        {BUILD.commit !== '' && (
+          <>
+            {' · '}
+            {url ? (
+              <a href={url} target="_blank" rel="noreferrer">
+                {shortCommit(BUILD.commit)}
+              </a>
+            ) : (
+              shortCommit(BUILD.commit)
+            )}
+          </>
+        )}
+        {formatBuildDate(BUILD.date) !== '' && <> · built {formatBuildDate(BUILD.date)}</>}
+      </p>
     </ModalSheet>
   );
 }

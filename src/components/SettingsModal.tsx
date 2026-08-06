@@ -81,16 +81,14 @@ export function SettingsModal({
   return (
     <ModalSheet
       labelledBy="settings-title"
+      title="Settings"
       onClose={onClose}
       // Only on the way back from one of the two sheets this one opens;
       // otherwise the sheet's own default (its first focusable, the theme
       // select) is the right landing place.
       initialFocusRef={returningFrom ? opener[returningFrom] : undefined}
       restoreFocusRef={restoreFocusRef}
-      dismissOnScrim
     >
-      <h2 id="settings-title">Settings</h2>
-
       <div className="settings-section">
         <label className="settings-legend" htmlFor="theme-select">
           Theme
@@ -174,12 +172,6 @@ export function SettingsModal({
         <p className="settings-place">{place.label}</p>
         <button ref={changeLocationRef} type="button" onClick={onOpenPicker}>
           Change location…
-        </button>
-      </div>
-
-      <div className="sheet-actions">
-        <button type="button" onClick={onClose}>
-          Close
         </button>
       </div>
     </ModalSheet>

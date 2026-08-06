@@ -5,6 +5,11 @@
     "lib": ["ES2023"],
     "module": "nodenext",
     "skipLibCheck": true,
+    /* Named explicitly rather than left to the default sweep of node_modules/@types,
+       which would also pull React's types into a project that is one Node script.
+       The config needs these because it shells out to git and reads package.json
+       to stamp the build — see the `define` block there. */
+    "types": ["node"],
 
     /* Bundler mode */
     "allowImportingTsExtensions": true,

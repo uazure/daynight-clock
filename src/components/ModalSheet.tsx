@@ -1,4 +1,5 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
+import { useNarrowViewport } from '../hooks/useNarrowViewport';
 
 /**
  * CAUTION: this matches *focusable candidates*, and the trap below assumes each
@@ -18,14 +19,26 @@ import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'rea
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 interface Props {
-  /** id of the element naming the dialog, for `aria-labelledby`. */
+  /** id given to the heading this renders, and pointed at by `aria-labelledby`. */
   labelledBy: string;
-  /** Called for Escape and (when `dismissOnScrim`) clicks on the backdrop. */
+  /** The sheet's heading, rendered into the header that never scrolls. */
+  title: ReactNode;
+  /**
+   * The one way out, called by all four of them: the sheet's own close control,
+   * Escape, and a click on the backdrop.
+   */
   onClose: () => void;
   /**
-   * Where focus lands when the sheet opens; defaults to the sheet's first
-   * focusable element. Focus must land *inside* the dialog — the app behind
-   * the scrim is inert, so focus left out there is focus lost.
+   * Where focus lands when the sheet opens; defaults to the sheet itself. Focus
+   * must land *inside* the dialog — the app behind the scrim is inert, so focus
+   * left out there is focus lost.
+   *
+   * Pass this only where a particular control is the reason the sheet opened
+   * (the picker's search field, or the button a closing child sheet came back
+   * from). "The first focusable" is deliberately *not* the default: it depends on
+   * which control happens to be first in the DOM, which made the wide-screen
+   * sheets open on their own X, and made *What is this?* open on the commit link
+   * in its build stamp the moment that line was added.
    */
   initialFocusRef?: RefObject<HTMLElement | null>;
   /**
@@ -42,21 +55,26 @@ interface Props {
    */
   restoreFocusRef?: RefObject<HTMLElement | null>;
   /**
-   * Whether clicking the scrim itself closes the sheet. Off by default, for a
-   * dialog whose choice must be made explicitly rather than by dismissal. The
-   * city picker, currently the only caller, opts in — closing it decides
-   * nothing.
-   */
-  dismissOnScrim?: boolean;
-  /**
    * Where the sheet sits inside the scrim. `center` is the dialog default;
    * `anchor-start` pins it to the top-left corner, under the control that opened
    * it, which is what makes the burger menu feel like a menu rather than a
    * dialog while still getting the focus trap and Escape handling below.
+   *
+   * It also decides whether the sheet renders a close control at all: an anchored
+   * sheet is a popover, dismissed by choosing from it, and a Close row under two
+   * menu items is a third item that does what Escape and the backdrop already do.
    */
   placement?: 'center' | 'anchor-start';
   /** Extra class on the sheet itself, for callers that need a narrower card. */
   sheetClassName?: string;
+  /**
+   * Extra class on the scrolling body, for a caller that lays its own content
+   * out. The city picker passes `picker-body` and drops its own wrapper, so the
+   * element that scrolls and the element that arranges the column are one — a
+   * nested box between them is a second height for the results list to flex
+   * against, and on a phone the list has to flex against the sheet's.
+   */
+  bodyClassName?: string;
   children: ReactNode;
 }
 
@@ -69,17 +87,37 @@ interface Props {
  * looks like it wants a lighter component, but every behaviour it needs is one
  * of these, and each one here cost a bug to get right — see the notes on
  * `previousFocus` and on the dependency array below.
+ *
+ * **The heading, the close control and the action row are this component's to
+ * render, not the caller's.** They used to be ordinary children, which made the
+ * sheet one flat scrolling column — and on a phone the settings sheet is taller
+ * than the screen, so *Close* sat below the fold and could only be reached by
+ * scrolling to it. A caller cannot opt out of chrome that must never scroll, so
+ * it is structural here: header, then the one scrolling region, then the
+ * actions. styles.css carries the matching three-row rule.
+ *
+ * **The close control is one control that changes place, not two that take
+ * turns.** On a phone the sheet is the page and the dismiss belongs on the
+ * action row at the bottom right, where a thumb already is; on anything wider it
+ * is a card and the dismiss is an X in its top-right corner. Which one exists is
+ * decided in JS (`useNarrowViewport`) rather than by hiding one in CSS, because
+ * a hidden control still matches `FOCUSABLE_SELECTOR` without being a tab stop
+ * and would put the trap back in the state AGENTS.md rule 9 describes.
  */
 export function ModalSheet({
   labelledBy,
+  title,
   onClose,
   initialFocusRef,
   restoreFocusRef,
-  dismissOnScrim = false,
   placement = 'center',
   sheetClassName,
+  bodyClassName,
   children,
 }: Props) {
+  const narrow = useNarrowViewport();
+  // The menu is a popover; only the dialogs carry a close control. See `placement`.
+  const closeControl = placement === 'center';
   const sheetRef = useRef<HTMLDivElement>(null);
   // Captured during the first render, not in the effect: by effect time the
   // app behind the scrim is already `inert` (and StrictMode's re-run of the
@@ -103,7 +141,7 @@ export function ModalSheet({
   // origin of the chain rather than at whatever it held on mount.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only, see above
   useEffect(() => {
-    const target = initialFocusRef?.current ?? sheetRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    const target = initialFocusRef?.current ?? sheetRef.current;
     target?.focus();
 
     return () => {
@@ -132,7 +170,11 @@ export function ModalSheet({
       className={placement === 'center' ? 'scrim' : 'scrim scrim-anchor-start'}
       role="presentation"
       onMouseDown={(event) => {
-        if (dismissOnScrim && event.target === event.currentTarget) {
+        // Every sheet dismisses this way now. It used to be opt-in, for "a dialog
+        // whose choice must be made explicitly" — but no such dialog survives:
+        // the blocking consent modal that wanted it is gone (rule 4), and closing
+        // any sheet that is left decides nothing.
+        if (event.target === event.currentTarget) {
           onClose();
         }
       }}
@@ -177,8 +219,40 @@ export function ModalSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
+        /*
+         * So the sheet itself can take focus on open, which is what makes a
+         * screen reader announce the dialog and its title rather than whichever
+         * control happens to be first. `-1` keeps it out of the tab order, and
+         * out of `FOCUSABLE_SELECTOR` — the trap's ends are unaffected.
+         */
+        tabIndex={-1}
       >
-        {children}
+        <div className="sheet-header">
+          <h2 id={labelledBy}>{title}</h2>
+
+          {closeControl && !narrow && (
+            <button type="button" className="sheet-close" aria-label="Close" onClick={onClose}>
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className={bodyClassName ? `sheet-body ${bodyClassName}` : 'sheet-body'}>{children}</div>
+
+        {/*
+          Last in the DOM, which is load-bearing rather than incidental: the trap
+          above takes the first and last matches of `FOCUSABLE_SELECTOR`, so this
+          is what keeps *Close* the final tab stop — and what keeps an
+          `<input type="time">`, whose internal segments browsers disagree about
+          tabbing between, off that end in the markers sheet.
+        */}
+        {closeControl && narrow && (
+          <div className="sheet-actions">
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
