@@ -7,6 +7,9 @@ either side, and night.
 Noon sits at the top and midnight at the bottom, so the hand points up when the
 sun is up.
 
+<img width="512" height="512" alt="image" src="https://github.com/user-attachments/assets/9d91013c-a8fe-4635-be64-3da77ecdcba4" />
+
+
 ## Running it
 
     npm install
