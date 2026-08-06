@@ -51,6 +51,9 @@ the build itself has no OS dependencies, though development here happens on Wind
   reads them back and *What is this?* shows the line. A build with no git behind it says so
   rather than linking to a 404. The service worker is `autoUpdate`, so the version a reader
   sees is the bundle actually running — which is what makes it worth quoting in a bug report.
+  **The patch number is the pull request that shipped it**, not a semver count: 0.0.10 came
+  from PR #10. Bump it in the PR itself, so the version a reader quotes leads straight to the
+  change and its discussion.
 - **City data is generated and committed**, not fetched: `cities.json` (3,058 cities) is
   code-split behind a dynamic `import()`; `timezone-coords.json` (356 zones) is bundled
   because the resolver needs it on the first frame.
