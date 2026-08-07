@@ -1,19 +1,42 @@
 import { describe, expect, it } from 'vitest';
-import { angleForHour, angleForMinute } from './geometry';
 import { altitudeToLightness, FULL_DARK_DEG, FULL_LIGHT_DEG, HORIZON_DEG, NIGHT_LIGHTNESS } from './lightness';
 import { MINUTES_PER_SAMPLE, SAMPLES_PER_DAY } from './sun';
 import { VISUAL } from './visual';
 
-const { canvas, face, palette, ring, ticks, hourLabels, minuteLabels, yearKnob, markers, hands } = VISUAL;
-
-/** Normalises a dial angle onto 0..360 so the two scales can be compared. */
-const turn = (deg: number) => ((deg % 360) + 360) % 360;
-
-/** Half the visual width of a numeral, outline included. */
-const glyphReach = (size: number, outlineWidth = 0) => size / 2 + outlineWidth / 2;
-
-/** Half the painted width of a stroke, i.e. how far it bleeds either side. */
-const strokeReach = (width: number) => width / 2;
+/**
+ * WHAT THIS FILE DOES NOT TEST, AND WHY.
+ *
+ * **Nothing here asserts where anything is.** This file used to pin the dial's
+ * whole geometry — box corners inside the wedge band, glyph caps clearing the
+ * hub, hands stopping short of the numerals, one line's baseline against the
+ * next — and every one of those pins was a guess at the right *look* frozen
+ * into an assertion. The cost showed up the moment the layout was being
+ * designed rather than merely kept: moving a line four units failed two tests
+ * that were not describing a defect, only a previous opinion. Taste belongs in
+ * `visual.ts`'s doc comments, where each constant carries its range and the
+ * reasoning behind it, and in an eye on the actual dial. A rendered SVG is the
+ * only honest judge of whether a layout works, and node cannot render one.
+ *
+ * The same goes for **rankings**: which wedge opacity is loudest, whether the
+ * clock is the largest type, whether the minute numerals sit lighter than the
+ * hour numerals. Those are all real decisions and all documented, but a test
+ * that repeats them just makes the config harder to edit.
+ *
+ * **What survives is what is not a matter of taste**:
+ *
+ * - the theme and hue rules (AGENTS.md rule 5), which are architectural — a
+ *   fourth `var(--…)` or a second hue changes what the dial *is*;
+ * - the ink pairs bracketing the lightness ramp, which is legibility rather
+ *   than preference: converge a pair and text over the gradient stops being
+ *   readable at one end of the day;
+ * - where the ink flips land on the sun's own ramp, a cross-module agreement
+ *   between `visual.ts` and `lightness.ts` that neither file can check alone;
+ * - arithmetic that would break the render rather than merely look wrong — a
+ *   `step` that does not divide its scale, a negative or zero measurement.
+ *
+ * Layout regressions are caught by looking at the dial. These are caught here
+ * because looking would not reveal them.
+ */
 
 /**
  * The numbers out of an `hsl()` string, whichever separator style it uses —
@@ -25,7 +48,7 @@ const channels = (colour: string) => (colour.match(/-?[\d.]+/g) ?? []).map(Numbe
 const hueOf = (colour: string) => channels(colour)[0];
 const lightnessOf = (colour: string) => channels(colour)[2];
 
-const tiers = Object.values(ticks.tiers);
+const { palette, ring, ticks, hourLabels, minuteLabels, markers, hubText, digital } = VISUAL;
 
 interface Leaf {
   path: string;
@@ -49,235 +72,20 @@ const allLeaves = leaves(VISUAL);
 const numbers = allLeaves.filter((leaf) => typeof leaf.value === 'number');
 const colours = allLeaves.filter((leaf) => typeof leaf.value === 'string' && leaf.value.includes('('));
 
-describe('the dial fits together', () => {
-  it('nests everything drawn on the shaded face inside it', () => {
-    for (const radius of [
-      ...tiers.map((tier) => tier.inner),
-      hourLabels.radius,
-      markers.inner,
-      markers.outer,
-      hands.hour.length,
-      hands.minute.length,
-      hands.hub.radius,
-    ]) {
-      expect(radius).toBeGreaterThan(0);
-      expect(radius).toBeLessThanOrEqual(face.radius);
-    }
-  });
-
-  it('fits inside the viewBox, minute numerals and all', () => {
-    expect(face.radius).toBeLessThan(canvas.extent);
-    // Only half the glyph extends past the band's radius; allowing a whole font
-    // size leaves the margin the outer band needs to not look clipped.
-    expect(minuteLabels.radius + minuteLabels.size).toBeLessThanOrEqual(canvas.extent);
-    // The knob's base is the outermost painted thing outside the minute band.
-    expect(yearKnob.base).toBeLessThan(canvas.extent);
-  });
-
-  it('lengthens each tick tier in step with its emphasis', () => {
-    // Longer tick = further in. Quarter-day anchors are longest, then the hours
-    // carrying a numeral, then the plain ones.
-    expect(ticks.tiers.quarter.inner).toBeLessThan(ticks.tiers.labelled.inner);
-    expect(ticks.tiers.labelled.inner).toBeLessThan(ticks.tiers.plain.inner);
-    // And draws the loudest one heaviest, so length and weight agree.
-    expect(ticks.tiers.quarter.width).toBeGreaterThan(ticks.tiers.labelled.width);
-    expect(ticks.tiers.labelled.width).toBeGreaterThan(ticks.tiers.plain.width);
-  });
-
-  it('keeps every tick tier inside the rim that paints over it', () => {
-    // Ticks are drawn from `outer - width / 2` inward precisely so one bound
-    // covers all three tiers. Measured from the centreline instead, the
-    // 1.6-wide anchors reached 87.8 and poked through a rim ending at 87.5.
-    expect(ticks.outer).toBeLessThanOrEqual(face.radius + strokeReach(face.rim.width));
-    for (const tier of tiers) {
-      // Still a tick after the cap compensation shortens it.
-      expect(ticks.outer - strokeReach(tier.width)).toBeGreaterThan(tier.inner);
-    }
-  });
-
-  it('keeps the ring inside its own silhouette', () => {
-    // Each slice is stroked with its own fill, so the gradient bleeds half that
-    // width past r=face. Wider than the rim and the fill spills outside it.
-    expect(strokeReach(ring.sliceStrokeWidth)).toBeLessThanOrEqual(strokeReach(face.rim.width));
-  });
-});
-
-describe("the reader's markers", () => {
-  it('keeps the wedge band inside the hour numerals it must not tint', () => {
-    // The load-bearing one. Everything the dial is read *against* — the
-    // numerals, the ticks, the rim, both ink flips — sits outside this band, so
-    // no marker can ever be part of the backdrop one of them was measured
-    // against. Let the band past the numerals' glyph edge and every contrast
-    // ratio in this file and in styles.css becomes a claim about an untinted
-    // face that is no longer true.
-    // `maxOuter` and not `outer` is the bound that matters: `outer` is one lane's
-    // height, and overlapping markers stack outward until they reach `maxOuter`.
-    // `laneBand` in `markers.ts` is what lands them on it exactly; this is what
-    // keeps that landing place inside the numerals.
-    expect(markers.inner).toBeLessThan(markers.outer);
-    expect(markers.outer).toBeLessThanOrEqual(markers.maxOuter);
-    expect(markers.maxOuter).toBeLessThanOrEqual(
-      hourLabels.radius - glyphReach(hourLabels.size, hourLabels.outlineWidth),
-    );
-    // Without air between them two stacked wedges of one phase read as one wedge,
-    // which is the whole thing lanes exist to prevent.
-    expect(markers.laneGap).toBeGreaterThan(0);
-  });
-
-  it('clears the corners of the readout box, not just its radius', () => {
-    // The readout is a rectangle and the band is a circle, so the constraint is
-    // the box's *corners*: measured against `bottom` alone the band would start
-    // at 32 and cut through the ends of the longest line.
-    const corner = Math.hypot(markers.readout.halfWidth, markers.readout.bottom);
-    expect(markers.inner).toBeGreaterThanOrEqual(corner);
-    expect(markers.readout.top).toBeLessThan(markers.readout.bottom);
-  });
-
-  it('leaves the hub and the counterweights out of the readout box', () => {
-    // The tails' round caps paint a couple of units past the hub disc — see
-    // `hands.tail` — so clearing `hub.radius` alone would put the first line of
-    // text on top of them.
-    const tailReach = hands.tail + strokeReach(hands.hour.width);
-    expect(markers.readout.top).toBeGreaterThan(Math.max(hands.hub.radius + hands.hub.haloWidth, tailReach));
-  });
-
-  it('orders the four wedge opacities the way the eye reads them', () => {
-    // Past recedes, upcoming sits mid-way, the one in progress is louder, and
-    // the part of it still to come is loudest: the ranking *is* the readout, so
-    // a mis-sorted pair would say the day was the other way round.
-    const { past, upcoming, active, remaining } = markers.wedge;
-    expect(past).toBeLessThan(upcoming);
-    expect(upcoming).toBeLessThan(active);
-    expect(active).toBeLessThan(remaining);
-    expect(remaining).toBeLessThanOrEqual(1);
-  });
-
-  it('ranks the moment dashes the same way, on their own scale', () => {
-    // Same order, higher values: a 1.2-unit dash at the wedges' opacities is
-    // invisible where a 16-unit wedge is a wash, which is why these are separate
-    // numbers rather than a reuse.
-    expect(markers.moment.past).toBeLessThan(markers.moment.upcoming);
-    expect(markers.moment.upcoming).toBeLessThan(markers.moment.active);
-    expect(markers.moment.active).toBeLessThanOrEqual(1);
-    expect(markers.moment.past).toBeGreaterThan(markers.wedge.past);
-  });
-
-  it('draws the next boundary as the crispest mark in the band', () => {
-    // It is the one thing the countdown is counting down to, so nothing else
-    // among the markers may out-weigh it.
-    expect(markers.boundary.width).toBeGreaterThanOrEqual(markers.moment.width * 0.5);
-    // The duration is the thing being read, so it may not be quieter than the
-    // label naming it. Weight carries that now rather than size: the two lines are
-    // set at the same size, and weight is what separates them.
-    expect(markers.readout.detail.size).toBeGreaterThanOrEqual(markers.readout.label.size);
-    expect(markers.readout.detail.weight).toBeGreaterThan(markers.readout.label.weight);
-  });
-});
-
-describe('the hands', () => {
-  it('keeps the hour hand shorter than the minute hand, as on a 24h dial', () => {
-    expect(hands.hour.length).toBeLessThan(hands.minute.length);
-    // And heavier, which is the other half of telling them apart at a glance.
-    expect(hands.hour.width).toBeGreaterThan(hands.minute.width);
-  });
-
-  it('stops the hour hand short of the numerals it points at, halo included', () => {
-    const tip = hands.hour.length + strokeReach(hands.hour.width + hands.haloBleed);
-    const numeralEdge = hourLabels.radius - glyphReach(hourLabels.size, hourLabels.outlineWidth);
-    expect(tip).toBeLessThan(numeralEdge);
-  });
-
-  it('stops the minute hand short of the longest tick, halo included', () => {
-    // The minute hand reads the outer band by angle rather than by reaching it,
-    // so it gains nothing from running the full radius — and a tip that stops
-    // before the quarter-day ticks avoids crowding them. This is the assertion
-    // the old bare `>= 2` units of clearance was standing in for.
-    const tip = hands.minute.length + strokeReach(hands.minute.width + hands.haloBleed);
-    expect(tip).toBeLessThan(ticks.tiers.quarter.inner);
-    // Still outside the hour numerals, so the two hands stay tellable apart.
-    expect(hands.minute.length).toBeGreaterThan(hourLabels.radius);
-  });
-
-  it('keeps each counterweight within the hub it pivots on', () => {
-    // Centreline only: the tail's round cap deliberately paints a couple of
-    // units past the hub disc — see the note on `hands.tail`.
-    expect(hands.tail).toBeLessThanOrEqual(hands.hub.radius);
-  });
-});
-
-describe('the two numeral scales', () => {
-  const labelledHours = [...Array(24).keys()].filter((h) => h % hourLabels.step === 0);
-  const labelledMinutes = [...Array(60).keys()].filter((m) => m % minuteLabels.step === 0);
-
-  it('divides both scales evenly, so no numeral is orphaned', () => {
-    expect(24 % hourLabels.step).toBe(0);
-    expect(60 % minuteLabels.step).toBe(0);
-  });
-
-  it('puts every labelled minute at the same angle as a labelled hour', () => {
-    // Not a defect — a consequence of one circle carrying both scales at
-    // different rates. Minute 10 sits at 60°, which is also hour 16; minute 30
-    // sits at the bottom, which is also hour 0. This is the test that justifies
-    // the radial separation asserted below: since the two scales cannot be told
-    // apart by angle, radius has to do all of that work.
-    const hourAngles = new Set(labelledHours.map((h) => turn(angleForHour(h))));
-    for (const minute of labelledMinutes) {
-      expect(hourAngles).toContain(turn(angleForMinute(minute)));
-    }
-  });
-
-  it('separates the two scales by the whole tick band and the rim', () => {
-    // Glyph edges, not centres: the hour numerals' outline has to clear the
-    // longest tick, and the minute numerals have to clear the rim itself rather
-    // than merely the face radius it straddles.
-    expect(hourLabels.radius + glyphReach(hourLabels.size, hourLabels.outlineWidth)).toBeLessThan(
-      ticks.tiers.quarter.inner,
-    );
-    expect(minuteLabels.radius - glyphReach(minuteLabels.size)).toBeGreaterThan(
-      face.radius + strokeReach(face.rim.width),
-    );
-  });
-
-  it("stands the knob's point on the dial's edge", () => {
-    // Touching, not merely near. The daylight arc that used to occupy this
-    // corridor had to read as *separate* from the rim and merged with it into a
-    // doubled silhouette when it came within a unit; a filled triangle cannot be
-    // mistaken for a second silhouette, so contact is safe here where proximity
-    // was not — and contact is what makes the pointer read as part of the dial.
-    expect(yearKnob.apex).toBe(face.radius + strokeReach(face.rim.width));
-  });
-
-  it('keeps the knob clear of the minute numerals', () => {
-    // The other end of the corridor, measured against the glyphs' painted edge
-    // rather than their nominal radius, for the reason the tests above give.
-    expect(minuteLabels.radius - glyphReach(minuteLabels.size) - yearKnob.base).toBeGreaterThanOrEqual(0.5);
-  });
-
-  it('keeps the knob taller than it is wide', () => {
-    // At a 375px viewport this shape is about 4px by 3px, and that small it reads
-    // as a pointer only while the point is the longest thing about it. Widen it
-    // and it becomes a blob that could be anything.
-    expect(yearKnob.base - yearKnob.apex).toBeGreaterThan(yearKnob.halfBase * 2);
-  });
-
-  it('gives the knob a target a finger can find', () => {
-    // The knob is ~3px across at a 375px viewport, so the hit wedge is the whole
-    // of its usability on touch. Wider than one day of arc in a leap year, or the
-    // day under the finger would be unreachable.
-    expect(yearKnob.hit.inner).toBeLessThan(yearKnob.apex);
-    expect(yearKnob.hit.outer).toBeGreaterThan(yearKnob.base);
-    expect(yearKnob.hit.halfAngleDeg).toBeGreaterThan(360 / 366 / 2);
-  });
-
-  it('gives every anchor tick a numeral to anchor', () => {
-    // A tier drawn longest and heaviest but landing on an unlabelled hour would
-    // read as emphasis pointing at nothing.
-    expect(ticks.anchorStep % hourLabels.step).toBe(0);
-  });
-
-  it('sets minute numerals smaller and lighter than hour numerals', () => {
-    expect(minuteLabels.size).toBeLessThan(hourLabels.size);
-    expect(minuteLabels.weight).toBeLessThan(hourLabels.weight);
+describe('where the countdown is configured from', () => {
+  it('gives it one set of dials for both of the forms it takes', () => {
+    // Not a layout pin — a wiring one, and the regression it exists for is
+    // real: the compact line's numbers once lived under `VISUAL.digital` while
+    // `MarkerReadout` — the only reader of `markers.readout` — was skipped
+    // whenever the digital clock was on. Every value in that block was then
+    // unreachable in the app's default state, so editing the block named after
+    // the countdown changed nothing on screen. No amount of looking at the
+    // dial reveals *that*; you just conclude the config is broken.
+    expect(markers.readout.compact).toBeDefined();
+    expect(markers.readout.label).toBeDefined();
+    // Whatever `VISUAL.digital` holds, it is the clock and the date only — a
+    // countdown line reappearing there is the shape of the old bug.
+    expect(Object.keys(digital)).not.toContain('next');
   });
 });
 
@@ -297,42 +105,14 @@ describe('the dial palette', () => {
     // Saturation deliberately varies — 12% for the ramp and the ink, 14% for
     // the hand core — but a stray hue would break the monochrome scale. The
     // markers used to be the one pinned exception, on an accent hue; they now
-    // separate by inversion instead (see the marker-ink tests below), so the
-    // whole dial is on one hue and a second one has to be argued for here first.
-    // Matches `hsla(` as well as `hsl(`, so a change of spelling cannot dodge
-    // the check.
+    // separate by inversion instead, so the whole dial is on one hue and a
+    // second one has to be argued for here first. Matches `hsla(` as well as
+    // `hsl(`, so a change of spelling cannot dodge the check.
     const literals = colours.filter((leaf) => String(leaf.value).startsWith('hsl'));
     expect(literals.length).toBeGreaterThan(0);
     for (const { path, value } of literals) {
       expect(hueOf(String(value)), path).toBe(palette.hue);
     }
-  });
-
-  it('spans the ramp with the marker pair, like the numeral inks do', () => {
-    // The marks have to survive a ramp running L96% to L5%, and no single tone
-    // can: dark over daylight is light over night. So every mark carries both —
-    // a `core` fill under a `halo` edge, the hands' recipe — and whichever
-    // sector it crosses, one half of the pair is far from the face behind it.
-    // That only holds while the pair brackets the ramp, which is what these
-    // bounds pin.
-    const core = lightnessOf(markers.core);
-    const halo = lightnessOf(markers.halo);
-    expect(markers.core).not.toBe(markers.halo);
-    expect(halo - core).toBeGreaterThanOrEqual(60);
-    expect(core).toBeLessThan(palette.band.min + 15);
-    expect(halo).toBeGreaterThan(palette.band.max - 15);
-  });
-
-  it('orders the edge opacities the way the wedge fills are ordered', () => {
-    // Over the night sector the core fill is dark on dark and the halo edge is
-    // the entire mark, so the edge has to carry the same past → remaining
-    // ranking the fills do — or the two halves of the dial would disagree
-    // about which marker is loudest.
-    const { past, upcoming, active, remaining } = markers.edge;
-    expect(past).toBeLessThan(upcoming);
-    expect(upcoming).toBeLessThan(active);
-    expect(active).toBeLessThan(remaining);
-    expect(remaining).toBeLessThanOrEqual(1);
   });
 
   it('maps lightness onto an ordered band inside HSL range', () => {
@@ -341,21 +121,36 @@ describe('the dial palette', () => {
     expect(palette.band.max).toBeLessThanOrEqual(100);
   });
 
-  it('spans the ramp with the hour numeral tones', () => {
-    // Whichever end of the ramp a numeral lands on, one tone has to be far from
-    // it — that is what lets the flip always have a solid fill to reach for.
-    // Let the pair converge and the halo becomes decoration, handing legibility
-    // back to the gradient: a ~3.5:1 dip through the civil-twilight band.
-    const dark = lightnessOf(hourLabels.inkDark);
-    const light = lightnessOf(hourLabels.inkLight);
-
-    expect(hourLabels.inkDark).not.toBe(hourLabels.inkLight);
-    expect(light - dark).toBeGreaterThanOrEqual(60);
-    expect(dark).toBeLessThan(palette.band.min + 15);
-    expect(light).toBeGreaterThan(palette.band.max - 15);
+  it('brackets the ramp with every pair that has to read over it', () => {
+    // Legibility, not preference. Anything drawn on the face has to survive a
+    // ramp running L96% to L5%, and no single tone can: dark over daylight is
+    // light over night. So each of these is a *pair*, one half always far from
+    // the face behind it — the marks and the hands, the hour numerals, the
+    // text at the hub. Let a pair converge and the mechanism that keeps them
+    // readable quietly stops working, which is invisible on the dial until you
+    // happen to look at the wrong hour of the wrong day.
+    for (const [name, dark, light] of [
+      ['markers', markers.core, markers.halo],
+      ['hourLabels', hourLabels.inkDark, hourLabels.inkLight],
+      ['hubText', hubText.dark, hubText.light],
+    ] as const) {
+      expect(dark, name).not.toBe(light);
+      expect(lightnessOf(light) - lightnessOf(dark), name).toBeGreaterThanOrEqual(60);
+      expect(lightnessOf(dark), name).toBeLessThan(palette.band.min + 15);
+      expect(lightnessOf(light), name).toBeGreaterThan(palette.band.max - 15);
+    }
   });
 
-  it("flips both inks inside the ramp's transition, not on a plateau", () => {
+  it('keeps the countdown caption between the two hub tones, not at either end', () => {
+    // The grey has to be legible over the night fan and still recede under the
+    // clock. Landing on either tone of the pair means it is no longer a
+    // caption; landing outside them means it is no longer on the ramp's scale.
+    const grey = lightnessOf(markers.readout.compact.color);
+    expect(grey).toBeGreaterThan(lightnessOf(hubText.dark));
+    expect(grey).toBeLessThan(lightnessOf(hubText.light));
+  });
+
+  it("flips every ink inside the ramp's transition, not on a plateau", () => {
     // The ramp is flat at `NIGHT_LIGHTNESS` and below, and flat at 1 above
     // `FULL_LIGHT_DEG`; everything between is transition. A flip has to land in
     // that transition: it exists to serve the mid-tones, where contrast against
@@ -363,20 +158,20 @@ describe('the dial palette', () => {
     // single-toned across the whole lit or whole dark part of the day, with
     // 0.99 (light-on-light nearly all the way round) being the failure this
     // catches.
-    for (const flipAt of [ticks.ink.flipAt, hourLabels.flipAt]) {
+    for (const flipAt of [ticks.ink.flipAt, hourLabels.flipAt, hubText.flipAt]) {
       expect(flipAt).toBeGreaterThan(NIGHT_LIGHTNESS);
       expect(flipAt).toBeLessThan(1);
     }
     expect(ticks.ink.dark).not.toBe(ticks.ink.light);
   });
 
-  it('puts both ink flips within minutes of sunrise and sunset', () => {
-    // Stronger than "inside the transition", and the reason the narrow ramp is
-    // worth having: the altitude at which each ink flips should be the horizon,
-    // so a numeral changes tone as the sun crosses it rather than somewhere
-    // arbitrary in dusk. Solved by bisection on the real ramp so this follows a
-    // retune of either module instead of restating its arithmetic.
-    for (const flipAt of [ticks.ink.flipAt, hourLabels.flipAt]) {
+  it('puts every ink flip within minutes of sunrise and sunset', () => {
+    // A cross-module agreement neither file can check alone: the altitude at
+    // which each ink flips should be the horizon, so a numeral changes tone as
+    // the sun crosses it rather than somewhere arbitrary in dusk. Solved by
+    // bisection on the real ramp so this follows a retune of `lightness.ts`
+    // instead of restating its arithmetic.
+    for (const flipAt of [ticks.ink.flipAt, hourLabels.flipAt, hubText.flipAt]) {
       let lo = FULL_DARK_DEG;
       let hi = FULL_LIGHT_DEG;
       for (let i = 0; i < 60; i += 1) {
@@ -393,6 +188,14 @@ describe('the dial palette', () => {
     }
   });
 
+  it('means a hub block over hours that are behind it, and no further', () => {
+    // Not a look: dawn and dusk sit at hours 6 and 18, behind neither hub
+    // block, so a span wide enough to reach them decides the flip on shading
+    // the glyphs are nowhere near.
+    expect(hubText.flipSpanHours).toBeGreaterThan(2);
+    expect(hubText.flipSpanHours).toBeLessThan(6);
+  });
+
   it('overlaps ring slices enough to hide seams and little enough to stay honest', () => {
     // Zero overlap leaves antialiased hairlines between all 1440 wedges. Too
     // much and a slice paints well past its own minute of the day; later
@@ -405,6 +208,15 @@ describe('the dial palette', () => {
 });
 
 describe('every value in the config', () => {
+  it('divides its scale evenly, so no numeral or tick is orphaned', () => {
+    // Arithmetic, not taste: a step that does not divide leaves a ragged gap
+    // where the scale wraps, and an anchor tick landing on an unlabelled hour
+    // is emphasis attached to nothing.
+    expect(24 % hourLabels.step).toBe(0);
+    expect(60 % minuteLabels.step).toBe(0);
+    expect(ticks.anchorStep % hourLabels.step).toBe(0);
+  });
+
   it('is a finite, non-negative measurement', () => {
     // Signs are kept positive here and negated at the call site, so a negative
     // is a typo rather than a direction. Zero is allowed and meaningful: it

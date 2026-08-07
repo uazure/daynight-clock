@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clockText,
   dateKeyInZone,
+  formatClockTime,
+  formatDialDate,
   formatDuration,
   formatMinutesOfDay,
+  formatSpokenDate,
   hoursSinceMidnightInZone,
   instantForZoneWallClock,
   instantForZoneWallClockWith,
@@ -384,5 +388,93 @@ describe('offsetAtFromTimeline', () => {
       expect(first).not.toBeNull();
       expect(offsetAtFromTimeline(timeline!, guess - (first as number) * 60_000)).not.toBeNull();
     }
+  });
+});
+
+describe('formatClockTime', () => {
+  it('pads to a fixed five glyphs on a 24-hour clock', () => {
+    // Fixed width is why the block never reflows: the dial is 24-hour, so this
+    // is the default and the one that has to hold still.
+    expect(formatClockTime(0, false)).toEqual({ text: '00:00', meridiem: null });
+    expect(formatClockTime(9 * 60 + 5, false)).toEqual({ text: '09:05', meridiem: null });
+    expect(formatClockTime(23 * 60 + 59, false)).toEqual({ text: '23:59', meridiem: null });
+  });
+
+  it('returns the meridiem apart from the digits', () => {
+    // Apart, because `DigitalReadout` sets it at a fifth the height. A single
+    // string would have to be re-split by the component to draw it.
+    expect(formatClockTime(10 * 60 + 44, true)).toEqual({ text: '10:44', meridiem: 'AM' });
+    expect(formatClockTime(18 * 60 + 7, true)).toEqual({ text: '6:07', meridiem: 'PM' });
+  });
+
+  it('calls midnight and noon twelve, not zero', () => {
+    // The two cases a naive `hour % 12` gets wrong, and the reason this
+    // conversion is written out rather than left to `Intl`.
+    expect(formatClockTime(0, true)).toEqual({ text: '12:00', meridiem: 'AM' });
+    expect(formatClockTime(12 * 60, true)).toEqual({ text: '12:00', meridiem: 'PM' });
+    expect(formatClockTime(12 * 60 + 30, true)).toEqual({ text: '12:30', meridiem: 'PM' });
+    expect(formatClockTime(11 * 60 + 59, true)).toEqual({ text: '11:59', meridiem: 'AM' });
+  });
+
+  it('drops the leading zero from a 12-hour hour', () => {
+    // Convention, and the reason the 12-hour block is one glyph narrower for
+    // part of the day — see the note on `VISUAL.digital.time`.
+    expect(formatClockTime(9 * 60 + 5, true)).toEqual({ text: '9:05', meridiem: 'AM' });
+  });
+
+  it('wraps a rounded-up 1440 to the next day rather than reading 24:00', () => {
+    // Same wrap `formatMinutesOfDay` does, and for the same reason: 23:59:40
+    // rounds to minute 1440.
+    expect(formatClockTime(1439.7, false)).toEqual({ text: '00:00', meridiem: null });
+    expect(formatClockTime(1440, true)).toEqual({ text: '12:00', meridiem: 'AM' });
+    expect(formatClockTime(-1, false)).toEqual({ text: '23:59', meridiem: null });
+  });
+});
+
+describe('clockText', () => {
+  it('joins the parts for the places that speak the time rather than draw it', () => {
+    expect(clockText({ text: '10:44', meridiem: null })).toBe('10:44');
+    expect(clockText({ text: '10:44', meridiem: 'AM' })).toBe('10:44 AM');
+  });
+});
+
+describe('formatDialDate', () => {
+  // 14:00 in Prague on Thursday the 6th; 02:00 on Friday the 7th in Auckland,
+  // which is UTC+12 in August. One instant, two dates — the whole point of the
+  // line, since the dial runs on the chosen place's clock and not the device's.
+  const instant = new Date('2026-08-06T12:00:00Z');
+
+  it('names the date in the dial zone, not the device zone', () => {
+    expect(formatDialDate(instant, 'Europe/Prague')).not.toBe(formatDialDate(instant, 'Pacific/Auckland'));
+  });
+
+  it('carries the day of the month the dial zone is on', () => {
+    // Asserting the day number rather than the whole string: the order of the
+    // parts is the reader's locale's business, not ours, and pinning it here
+    // would fail on any CI box with a different default.
+    expect(formatDialDate(instant, 'Europe/Prague')).toContain('6');
+    expect(formatDialDate(instant, 'Pacific/Auckland')).toContain('7');
+  });
+
+  it('applies the zone offset across midnight', () => {
+    // 22:30 UTC is already 00:30 the next day in Prague. Read in UTC, or with
+    // the offset dropped, this lands on the 24th and the hub would show
+    // yesterday for two hours every night.
+    expect(formatDialDate(new Date('2026-10-24T22:30:00Z'), 'Europe/Prague')).toContain('25');
+  });
+});
+
+describe('formatSpokenDate', () => {
+  it('writes the weekday and month out in full', () => {
+    // The dial is `role="img"`, so its accessible name is the only route this
+    // date has to a screen reader — and an abbreviation that reads well on a
+    // 5.5-unit line does not read well aloud.
+    const spoken = formatSpokenDate(new Date('2026-08-06T12:00:00Z'), 'Europe/Prague');
+    expect(spoken.length).toBeGreaterThan(formatDialDate(new Date('2026-08-06T12:00:00Z'), 'Europe/Prague').length);
+  });
+
+  it('agrees with the drawn date about which day it is', () => {
+    const instant = new Date('2026-08-06T12:00:00Z');
+    expect(formatSpokenDate(instant, 'Pacific/Auckland')).toContain('7');
   });
 });

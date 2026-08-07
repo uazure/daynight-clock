@@ -183,7 +183,7 @@ describe('the readout wording', () => {
     if (next === null) {
       throw new Error('a single marker always has a next boundary');
     }
-    return readoutLines(next);
+    return readoutLines(next, false);
   };
 
   it('names an interval in progress by its end', () => {
@@ -354,5 +354,42 @@ describe('the radii a lane is drawn at', () => {
 
   it('treats a zero count as one lane rather than dividing by it', () => {
     expect(laneBand(0, 0)).toEqual(laneBand(0, 1));
+  });
+});
+
+describe('readoutLines under the 12-hour preference', () => {
+  it("names an unnamed marker on the reader's own clock", () => {
+    // A blank label survives `parseMarkers` precisely so the readout can say
+    // the time instead — and the time it says has to be in the format the
+    // reader picked, or the dial contradicts itself between the hub and the
+    // settings sheet.
+    const unnamed = marker('', at(18), at(20));
+    expect(readoutLines({ marker: unnamed, kind: 'start', at: at(18), inMinutes: 60 }, true).label).toBe(
+      'Starts 6:00 PM',
+    );
+    expect(readoutLines({ marker: unnamed, kind: 'start', at: at(18), inMinutes: 60 }, false).label).toBe(
+      'Starts 18:00',
+    );
+    // And a moment, which names itself by its time with no verb at all.
+    expect(readoutLines({ marker: marker('', at(18)), kind: 'start', at: at(18), inMinutes: 60 }, true).label).toBe(
+      '6:00 PM',
+    );
+  });
+
+  it("leaves a named marker's wording alone", () => {
+    // The format only reaches times the app writes. A label the reader typed is
+    // not one of them.
+    const next = { marker: marker('Break', at(18), at(20)), kind: 'start' as const, at: at(18), inMinutes: 60 };
+    expect(readoutLines(next, true).label).toBe(readoutLines(next, false).label);
+  });
+
+  it('keeps the longest first line inside the box the label cap sizes for', () => {
+    // `MAX_LABEL_LENGTH` sizes the box for 17 characters — a 10-character label
+    // plus ' starts'. An unnamed interval starting at 12:00 is the longest a
+    // time can make that line, and it must not be the case that overflows it.
+    const noon = marker('', at(12), at(13));
+    const line = readoutLines({ marker: noon, kind: 'start', at: at(12), inMinutes: 60 }, true).label;
+    expect(line).toBe('Starts 12:00 PM');
+    expect(line.length).toBeLessThanOrEqual(MAX_LABEL_LENGTH + ' starts'.length);
   });
 });
