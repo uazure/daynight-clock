@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Marker } from './markers';
 import {
+  loadHour12,
   loadMarkers,
+  loadShowDigitalTime,
   loadShowMarkers,
   loadShowYearKnob,
+  saveHour12,
   saveMarkers,
+  saveShowDigitalTime,
   saveShowMarkers,
   saveShowYearKnob,
 } from './settings';
@@ -169,5 +173,81 @@ describe('the stored markers', () => {
     vi.stubGlobal('localStorage', throwingStorage());
     expect(() => saveMarkers(markers)).not.toThrow();
     expect(() => saveMarkers([])).not.toThrow();
+  });
+});
+
+describe('the stored digital-time preference', () => {
+  it('defaults to shown when nothing is stored', () => {
+    // Follows the markers idiom rather than the year knob's: the knob is off by
+    // default because it puts the face into a state where the shading is no
+    // longer *now*, which is the one thing the app otherwise promises
+    // unconditionally. Digits change nothing about what the dial means.
+    expect(loadShowDigitalTime()).toBe(true);
+  });
+
+  it('round-trips both choices through storage', () => {
+    for (const shown of [false, true, false]) {
+      saveShowDigitalTime(shown);
+      expect(loadShowDigitalTime()).toBe(shown);
+    }
+  });
+
+  it('stores the default as an absence, not a value', () => {
+    saveShowDigitalTime(false);
+    saveShowDigitalTime(true);
+    expect(localStorage.getItem('daynight.showDigitalTime')).toBeNull();
+  });
+
+  it('treats an unrecognised stored value as shown', () => {
+    localStorage.setItem('daynight.showDigitalTime', 'maybe');
+    expect(loadShowDigitalTime()).toBe(true);
+  });
+
+  it('reads as shown rather than throwing when storage is unavailable', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(loadShowDigitalTime()).toBe(true);
+  });
+
+  it('does not throw when storage writes fail', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(() => saveShowDigitalTime(true)).not.toThrow();
+    expect(() => saveShowDigitalTime(false)).not.toThrow();
+  });
+});
+
+describe('the stored time-format preference', () => {
+  it('defaults to 24-hour when nothing is stored', () => {
+    // The dial is a 24-hour dial. A face captioned "10:44 PM" fights itself, so
+    // 12-hour is the opt-in and absence of the key is 24-hour.
+    expect(loadHour12()).toBe(false);
+  });
+
+  it('round-trips both choices through storage', () => {
+    for (const hour12 of [true, false, true]) {
+      saveHour12(hour12);
+      expect(loadHour12()).toBe(hour12);
+    }
+  });
+
+  it('stores the default as an absence, not a value', () => {
+    saveHour12(true);
+    saveHour12(false);
+    expect(localStorage.getItem('daynight.hour12')).toBeNull();
+  });
+
+  it('treats an unrecognised stored value as 24-hour', () => {
+    localStorage.setItem('daynight.hour12', 'maybe');
+    expect(loadHour12()).toBe(false);
+  });
+
+  it('reads as 24-hour rather than throwing when storage is unavailable', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(loadHour12()).toBe(false);
+  });
+
+  it('does not throw when storage writes fail', () => {
+    vi.stubGlobal('localStorage', throwingStorage());
+    expect(() => saveHour12(true)).not.toThrow();
+    expect(() => saveHour12(false)).not.toThrow();
   });
 });

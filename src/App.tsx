@@ -9,9 +9,11 @@ import { SettingsModal } from './components/SettingsModal';
 import { YearSlider } from './components/YearSlider';
 import { useDayProfile } from './hooks/useDayProfile';
 import { useFullscreen } from './hooks/useFullscreen';
+import { useHour12 } from './hooks/useHour12';
 import { useLocation } from './hooks/useLocation';
 import { useMarkers } from './hooks/useMarkers';
 import { useNow } from './hooks/useNow';
+import { useShowDigitalTime } from './hooks/useShowDigitalTime';
 import { useShowMarkers } from './hooks/useShowMarkers';
 import { useYearDrag } from './hooks/useYearDrag';
 import { useYearKnob } from './hooks/useYearKnob';
@@ -54,6 +56,8 @@ export default function App() {
   const [markers, setMarkers] = useMarkers();
   const [showMarkers, setShowMarkers] = useShowMarkers();
   const [showYearKnob, setShowYearKnob] = useYearKnob();
+  const [showDigitalTime, setShowDigitalTime] = useShowDigitalTime();
+  const [hour12, setHour12] = useHour12();
   const [overlay, setOverlay] = useState<Overlay>(null);
   /**
    * Which sheet the settings sheet opened, if it opened one — and by implication
@@ -237,6 +241,8 @@ export default function App() {
             // untouched, the markers sheet still edits it, and switching back
             // on shows exactly what was there.
             markers={showMarkers ? markers : NO_MARKERS}
+            hour12={hour12}
+            showDigitalTime={showDigitalTime}
             knobDay={showYearKnob ? { dayOfYear: shownDay, daysThisYear } : null}
             simulatedDate={simulatedDate}
             knobFocusVisible={knobFocusVisible}
@@ -277,12 +283,16 @@ export default function App() {
           showYearKnob={showYearKnob}
           showMarkers={showMarkers}
           markerCount={markers.length}
+          showDigitalTime={showDigitalTime}
+          hour12={hour12}
           // Set only while one of this sheet's own children is open or has just
           // closed back into it, which is what makes it a focus target.
           returningFrom={settingsChild}
           restoreFocusRef={overlayOrigin}
           onShowYearKnobChange={setShowYearKnob}
           onShowMarkersChange={setShowMarkers}
+          onShowDigitalTimeChange={setShowDigitalTime}
+          onHour12Change={setHour12}
           onOpenPicker={openFromSettings('picker')}
           onOpenMarkers={openFromSettings('markers')}
           onClose={close}

@@ -1,9 +1,10 @@
 import type { YearDragHandlers } from '../hooks/useYearDrag';
 import { type Marker, nextBoundary, readoutLines } from '../lib/markers';
 import type { DayProfile, SunEvents } from '../lib/sun';
-import { formatMinutesOfDay, hoursSinceMidnightInZone } from '../lib/time';
+import { clockText, formatClockTime, formatSpokenDate, hoursSinceMidnightInZone } from '../lib/time';
 import { VISUAL } from '../lib/visual';
 import { DayNightRing } from './DayNightRing';
+import { DigitalReadout } from './DigitalReadout';
 import { Hands } from './Hands';
 import { HourLabels } from './HourLabels';
 import { MarkerReadout } from './MarkerReadout';
@@ -31,6 +32,20 @@ interface Props {
   /** The reader's own times. Empty is the off state, for the same reason. */
   markers: Marker[];
   /**
+   * Whether times are written on a 12-hour clock — the digits at the hub, the
+   * countdown's label for an unnamed marker, and the sun times in the
+   * accessible name below. A format rather than a switch, which is why this is
+   * a plain boolean where `markers` and `knobDay` make absence their off state.
+   */
+  hour12: boolean;
+  /**
+   * Whether the digital clock and date are drawn. A plain boolean rather than
+   * the `null`-is-off shape `markers` and `knobDay` use, because there is no
+   * payload here to make an absence out of — the block draws itself from `now`
+   * and the zone this component already has.
+   */
+  showDigitalTime: boolean;
+  /**
    * The day the knob points at, and the size of the year it sits in — or `null`
    * for the whole feature being off, which is the default. `null` rather than a
    * separate boolean so this component never learns that a setting exists: it
@@ -54,7 +69,7 @@ interface Props {
  * reason: sighted readers get it from a dial shaded uniformly light or dark, and
  * this is its only other route out.
  */
-function sunSummary({ sunrise, sunset, polar }: SunEvents): string {
+function sunSummary({ sunrise, sunset, polar }: SunEvents, hour12: boolean): string {
   if (polar === 'day') {
     return ', daylight all day';
   }
@@ -63,8 +78,8 @@ function sunSummary({ sunrise, sunset, polar }: SunEvents): string {
   }
 
   return [
-    sunrise !== null ? `, sunrise ${formatMinutesOfDay(sunrise)}` : '',
-    sunset !== null ? `, sunset ${formatMinutesOfDay(sunset)}` : '',
+    sunrise !== null ? `, sunrise ${clockText(formatClockTime(sunrise, hour12))}` : '',
+    sunset !== null ? `, sunset ${clockText(formatClockTime(sunset, hour12))}` : '',
   ].join('');
 }
 
@@ -85,32 +100,39 @@ export function Clock({
   timeZone,
   events,
   markers,
+  hour12,
+  showDigitalTime,
   knobDay,
   simulatedDate,
   knobFocusVisible,
   knobDragging,
   knobHandlers,
 }: Props) {
-  const time = now.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone,
-  });
   // Whole minutes, and computed once here rather than inside each child: it is
   // what both marker layers are keyed on, so passing an integer is what keeps
   // them re-rendering once a minute instead of on every two-second tick of
   // `useNow`.
   const minuteOfDay = Math.floor(hoursSinceMidnightInZone(now, timeZone) * 60);
+  // Off `minuteOfDay` rather than `toLocaleTimeString`, so the label and the
+  // digits at the hub come from one zone-aware derivation of the hour instead
+  // of two that could disagree — AGENTS.md rule 2 read strictly.
+  const time = clockText(formatClockTime(minuteOfDay, hour12));
   const next = nextBoundary(markers, minuteOfDay);
   // The readout is drawn inside the `<svg>`, and this element is `role="img"`, so
   // nothing in it is ever announced. Same reason the sunrise and sunset times are
   // in this string: the accessible name is the only route out.
-  const spoken = next ? readoutLines(next) : null;
+  const spoken = next ? readoutLines(next, hour12) : null;
   const upNext = spoken ? `, ${spoken.label} ${spoken.detail}` : '';
   // The simulated date goes between the time and the sun times, because the sun
   // times describe the day it names rather than today.
   const shading = simulatedDate === null ? '' : `, shading simulated for ${simulatedDate}`;
-  const label = `24-hour day and night clock, ${time}${shading}${sunSummary(events)}${upNext}`;
+  // The date is in the label whether or not the digital block is drawn. The
+  // `<svg>` is `role="img"`, so the label is the only route any of this has to
+  // a screen reader, and the dial's zone genuinely can be a day ahead of the
+  // device's — that is worth saying even to a reader who has the block switched
+  // off, the same argument the sun times are here on.
+  const date = formatSpokenDate(now, timeZone);
+  const label = `24-hour day and night clock, ${time}, ${date}${shading}${sunSummary(events, hour12)}${upNext}`;
 
   return (
     <svg className="clock" viewBox={viewBox} role="img" aria-label={label}>
@@ -139,8 +161,23 @@ export function Clock({
         Before the hands rather than after, so a hand passes over the countdown
         instead of being cut in half by it — see `MarkerReadout` on that trade.
       */}
-      {next && <MarkerReadout next={next} />}
+      {/*
+        The countdown is drawn here whenever there is one, in whichever of its
+        two forms fits: two lines with the disc to itself, or one grey caption
+        under the clock. `MarkerReadout` owns both, so `markers.readout` is the
+        one place either is tuned from.
+      */}
+      {next && <MarkerReadout next={next} lightness={profile.lightness} hour12={hour12} compact={showDigitalTime} />}
       <Hands now={now} timeZone={timeZone} />
+      {/*
+        After the hands, unlike the countdown. The hour hand crosses this slot
+        in the small hours, and at 12 units the digits are the one thing on the
+        face big enough to win that overlap rather than merely survive it: a
+        hand drawn on top cuts the numerals in half. The countdown stays under
+        the hands because type that small painted over a 3.4-unit hand would be
+        the hand that looked broken.
+      */}
+      {showDigitalTime && <DigitalReadout now={now} timeZone={timeZone} minuteOfDay={minuteOfDay} hour12={hour12} />}
       {/*
         Last of all, because its grab target is a transparent path and everything
         else defaults to `pointer-events: visiblePainted` — a painted element

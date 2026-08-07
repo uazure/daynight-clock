@@ -12,6 +12,10 @@ interface Props {
   showMarkers: boolean;
   /** How many markers exist, so the row can say so without holding the list. */
   markerCount: number;
+  /** Whether the digital clock and date are drawn above the hub. */
+  showDigitalTime: boolean;
+  /** Whether times are written on a 12-hour clock, here and everywhere else. */
+  hour12: boolean;
   /**
    * Which of this sheet's own dialogs it opened, when this sheet is on screen
    * again because that dialog has just closed rather than because it was opened
@@ -22,6 +26,8 @@ interface Props {
   returningFrom?: 'picker' | 'markers' | null;
   onShowYearKnobChange: (next: boolean) => void;
   onShowMarkersChange: (next: boolean) => void;
+  onShowDigitalTimeChange: (next: boolean) => void;
+  onHour12Change: (next: boolean) => void;
   /** Passed straight through — see `ModalSheet`'s own note on the prop. */
   restoreFocusRef?: RefObject<HTMLElement | null>;
   onOpenPicker: () => void;
@@ -33,6 +39,18 @@ const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
   { value: 'auto', label: 'Automatic' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
+];
+
+/**
+ * A `<select>` and not a radio pair, for the reason the theme control is one:
+ * a group is a single tab stop but two matches of `ModalSheet`'s focusable
+ * selector, and the focus trap takes the first and last *match* as its ends.
+ * See AGENTS.md rule 9 — it cost a Shift-Tab escaping the sheet into the
+ * browser chrome.
+ */
+const TIME_FORMAT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '24', label: '24-hour' },
+  { value: '12', label: '12-hour' },
 ];
 
 /**
@@ -65,10 +83,14 @@ export function SettingsModal({
   showYearKnob,
   showMarkers,
   markerCount,
+  showDigitalTime,
+  hour12,
   returningFrom,
   restoreFocusRef,
   onShowYearKnobChange,
   onShowMarkersChange,
+  onShowDigitalTimeChange,
+  onHour12Change,
   onOpenPicker,
   onOpenMarkers,
   onClose,
@@ -117,6 +139,49 @@ export function SettingsModal({
         </div>
         <p className="settings-hint" id="theme-hint">
           Automatic follows your device.
+        </p>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-legend">Time</h3>
+        <label className="settings-row">
+          <input
+            type="checkbox"
+            checked={showDigitalTime}
+            aria-describedby="digital-time-hint"
+            onChange={(event) => onShowDigitalTimeChange(event.currentTarget.checked)}
+          />
+          Show the digital clock
+        </label>
+        <p className="settings-hint" id="digital-time-hint">
+          The time and today's date at the centre of the dial, on the clock of the place shown below.
+        </p>
+        <label className="settings-legend" htmlFor="time-format-select">
+          Time format
+        </label>
+        <div className="settings-select-wrap">
+          <select
+            id="time-format-select"
+            className="settings-select"
+            value={hour12 ? '12' : '24'}
+            aria-describedby="time-format-hint"
+            onChange={(event) => onHour12Change(event.currentTarget.value === '12')}
+          >
+            {TIME_FORMAT_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/*
+          Not disabled when the digital clock is off: the format still governs
+          the countdown's label for an unnamed marker and the times in the
+          dial's accessible name.
+        */}
+        <p className="settings-hint" id="time-format-hint">
+          Applies wherever a time is written, not only at the centre. The markers editor uses your device's own time
+          field, which follows your system setting instead.
         </p>
       </div>
 

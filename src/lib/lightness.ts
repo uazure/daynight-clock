@@ -169,3 +169,29 @@ export function labelInk(lightness: number): LabelInk {
   const { inkDark, inkLight, flipAt } = VISUAL.hourLabels;
   return lightness > flipAt ? { fill: inkDark, outline: inkLight } : { fill: inkLight, outline: inkDark };
 }
+
+export interface HubInk {
+  /** The glyph itself: whichever tone is far from the face behind it. */
+  core: string;
+  /** Stroked underneath the core, so the glyph reads against this and not the dial. */
+  halo: string;
+}
+
+/**
+ * Both tones for a block of text at the hub, as a pair — the same shape and
+ * the same reasoning as `labelInk`, on `VISUAL.hubText`'s pair rather than the
+ * numerals'. Returned together because they are only correct *opposed*: one
+ * tone used for both is an invisible glyph, and the pair the wrong way round is
+ * a hollow one.
+ *
+ * A second function rather than an argument to `labelInk`, because the two
+ * differ in what they are handed as much as in which tones they return: a
+ * numeral flips against the single sample beneath it, and text at the hub flips
+ * against a mean over `hubText.flipSpanHours` — see `meanLightnessAround`.
+ * Sharing one function would hide that its callers compute their input
+ * differently.
+ */
+export function hubInk(lightness: number): HubInk {
+  const { dark, light, flipAt } = VISUAL.hubText;
+  return lightness > flipAt ? { core: dark, halo: light } : { core: light, halo: dark };
+}

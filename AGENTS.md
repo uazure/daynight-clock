@@ -16,8 +16,9 @@ wake-up, the hours of work — with a countdown at the hub to whichever boundary
 
 Non-goals: no server, no accounts, no analytics, no network calls at runtime, no precise
 location. Coordinates never leave the device (rounded to ~1 km) and nothing is persisted
-beyond four `localStorage` keys — the chosen place, the theme, whether the year knob is on,
-and the reader's own times. The date that knob *selects* is deliberately **not** among them.
+beyond six `localStorage` keys — the chosen place, the theme, whether the year knob is on,
+whether the digital clock is on, whether times are written on a 12-hour clock, and the
+reader's own times. The date that knob *selects* is deliberately **not** among them.
 
 ## Target platforms
 
@@ -64,10 +65,12 @@ the build itself has no OS dependencies, though development here happens on Wind
 src/lib/         pure logic + colocated *.test.ts (time, sun, lightness, visual, dial,
                  geometry, year, location, cities, theme, settings, markers, build)
 src/hooks/       useNow, useDayProfile, useLocation, useTheme, useMarkers,
-                 useFullscreen, useYearKnob, useYearDrag, useNarrowViewport
-src/components/  Clock + dial parts (incl. YearKnob, MarkerWedges, MarkerReadout),
-                 YearSlider, LocationPanel, ModalSheet and its five sheets (MainMenu,
-                 SettingsModal, CityPickerModal, MarkersModal, AboutModal)
+                 useFullscreen, useYearKnob, useYearDrag, useNarrowViewport,
+                 useShowDigitalTime, useHour12
+src/components/  Clock + dial parts (incl. YearKnob, MarkerWedges, MarkerReadout,
+                 DigitalReadout), YearSlider, LocationPanel, ModalSheet and its five
+                 sheets (MainMenu, SettingsModal, CityPickerModal, MarkersModal,
+                 AboutModal)
 src/data/        generated JSON — do not hand-edit; see src/data/README.md
 scripts/         build-cities.mjs, run by hand, never part of the build
 ```
@@ -77,7 +80,7 @@ scripts/         build-cities.mjs, run by hand, never part of the build
 ```bash
 npm install
 npm run dev         # http://localhost:5173
-npm test            # vitest run — 312 tests, ~3s
+npm test            # vitest run — 320 tests, ~3s
 npm run typecheck   # tsc -b
 npm run lint        # biome check — lint, format and import order, read-only
 npm run lint:fix    # biome check --write — applies all three
@@ -136,7 +139,11 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    rotates an hour away from the hands on DST transition days.
 2. **One zone decides everything on screen.** `App` computes it once and threads it down.
    Downstream code must not reach for the device zone or a bare `Date#getHours` — a +5:45
-   zone moves even the minute hand.
+   zone moves even the minute hand. The 12-hour preference works the same way — passed down,
+   never read from storage mid-tree — and it reaches every time the app *writes*. It
+   deliberately stops at `formatMinutesOfDay`, which feeds `<input type="time">` values in
+   the markers editor: the HTML spec fixes that format at 24-hour and the browser localises
+   the control itself.
 3. **Nothing in `src/lib/` imports React or touches the DOM**, except `location.ts`
    (`navigator`, `localStorage`), `theme.ts` and `settings.ts` (`localStorage`). Every
    storage call is wrapped in `try`/`catch`: Safari private browsing throws on `setItem`,
@@ -162,6 +169,14 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    both ends of the lightness ramp. They now carry both tones instead — a `markers.core`
    fill under a `markers.halo` edge, the hands' recipe — so the dark half of the pair
    reads over daylight and the light half over night. Pinned the same way, by exact hue.
+   Text at the hub is the third case of the same recipe: near the centre the ring's slices
+   have converged, so a block spans hours of the day at once and every glyph is stroked with
+   the opposite tone under its own fill. `VISUAL.hubText` holds that pair. Whether the pair
+   also **flips** with the shading is per block, deliberately: `markers.readout` flips,
+   because at 5 units a light fill on a near-white face reads as a hollow outline — which is
+   what the countdown did through a polar day — while `VISUAL.digital` pins the orientation
+   light-over-dark, since it sits over the midnight fan and 12-unit type outlined in black
+   still reads as type. `meanLightnessAround` computes the mean the flip is decided against.
 6. **Keep `cities.json` behind a dynamic `import()`.** A static import puts ~155 KB into
    the initial bundle.
 7. **Don't hand-edit `src/data/*.json`** and don't wire `scripts/build-cities.mjs` into
@@ -217,9 +232,12 @@ failure it prevents — the notes here are the index, the code holds the reasoni
    in `styles.css` and in `visual.ts` silently becomes a claim about an untinted face.
    The bound is `maxOuter` rather than `outer` because overlapping markers stack outward in
    lanes: `outer` is one lane's height, and `laneBand` shrinks that height so the outermost
-   lane lands on `maxOuter` exactly however many lanes there are. `visual.test.ts` pins the
-   bound, `markers.test.ts` pins the landing, and between them sits the readout box whose
-   corners set `markers.inner` from the inside.
+   lane lands on `maxOuter` exactly however many lanes there are. `markers.test.ts` pins the
+   landing — that `laneBand` never returns a radius past the bound, whatever the bound is set
+   to. The *value* of `maxOuter` against the numerals' glyph edge is not pinned anywhere:
+   it is a layout judgement, and the note at the top of `visual.test.ts` explains why that
+   file no longer asserts where anything sits. Inside `maxOuter` sits the readout box, whose
+   corners are what `markers.inner` is chosen around.
 15. **Two translucent wedges of the same marker phase must never overlap.** They would
    composite to an opacity nothing in `visual.ts` names, and the reader would try to read
    meaning into the third shade. Three things hold that line: `MarkerWedges` emits **one path
@@ -302,6 +320,18 @@ The suite's most valuable test composes `sampleDay` with `sampleIndexForHour` ac
 transition days in two zones — that seam being untested is how the ring-rotation bug
 survived nine reviews. Prefer tests that cross a module boundary; all three bugs found by
 the final whole-branch review sat between modules that were individually correct.
+
+**Do not test taste, and do not test position.** `visual.test.ts` once pinned the dial's
+whole geometry — box corners inside the wedge band, glyph caps clearing the hub, hands
+stopping short of the numerals — plus every visual ranking, from the wedge opacities to
+which type was largest. All of it was a previous opinion frozen into an assertion, and it
+cost most when the layout was being *designed* rather than kept: moving one line four units
+failed two tests that described no defect. Those pins are gone. A layout is judged by
+looking at the rendered dial, which node cannot do; the constants carry their ranges and
+their reasoning in `visual.ts` doc comments instead. What that file still asserts is only
+what looking would *not* reveal — the theme and hue rules, the ink pairs bracketing the
+lightness ramp, where the flips land on the sun's own ramp, and arithmetic that would break
+the render rather than merely look wrong. Its header argues the line in full.
 
 ## Where the reasoning lives
 

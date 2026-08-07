@@ -13,7 +13,7 @@
  * clock. Nothing is stored per marker to say so.
  */
 
-import { formatDuration, formatMinutesOfDay } from './time';
+import { clockText, formatClockTime, formatDuration } from './time';
 import { VISUAL } from './visual';
 
 /**
@@ -35,6 +35,11 @@ export const MAX_MARKERS = 5;
  * 17 come to ~53 units and fit where 18 would not. A node test cannot measure
  * SVG text, so this cap is the only guard there is — move
  * `readout.halfWidth` or `label.size` and this number has to move with it.
+ *
+ * The 12-hour preference does not move this number. An unnamed marker names
+ * itself by its time, and the longest a time can make that line is
+ * `Starts 12:00 PM` at 15 characters — still inside the 17 this cap sizes the
+ * box for.
  */
 export const MAX_LABEL_LENGTH = 10;
 
@@ -335,9 +340,13 @@ export function nextBoundary(markers: Marker[], minuteOfDay: number): NextBounda
  * label is allowed to survive `parseMarkers`: "18:00" is a perfectly good thing
  * for the dial to say, and demanding a name to get a countdown would be a
  * validation error over nothing.
+ *
+ * The format is passed in rather than read here, because `markers.ts` is pure
+ * and the preference lives in `localStorage`. It reaches every time this
+ * function writes and no label the reader typed.
  */
-export function readoutLines(next: NextBoundary): { label: string; detail: string } {
-  const time = formatMinutesOfDay(next.at);
+export function readoutLines(next: NextBoundary, hour12: boolean): { label: string; detail: string } {
+  const time = clockText(formatClockTime(next.at, hour12));
   const named = next.marker.label !== '';
 
   let label: string;

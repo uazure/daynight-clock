@@ -286,14 +286,118 @@ export function instantForZoneWallClockWith(
 }
 
 /**
- * Minutes after midnight → `HH:MM` on a 24-hour clock, to match the dial the
- * reader is looking at. Rounding 23:59:40 up produces minute 1440, which is
- * the next day's `00:00`, so the result wraps rather than reading `24:00`.
+ * Minutes after midnight onto 0..1439, rounding to the nearest minute. Shared
+ * by both formatters below so there is one definition of the wrap: rounding
+ * 23:59:40 up produces minute 1440, which is the next day's midnight rather
+ * than a 24th hour.
+ */
+function minuteOfDay(minutes: number): number {
+  return ((Math.round(minutes) % 1440) + 1440) % 1440;
+}
+
+/**
+ * Minutes after midnight → `HH:MM` on a 24-hour clock.
+ *
+ * **Deliberately not affected by the 12-hour preference**, unlike
+ * `formatClockTime` below. `MarkersModal` feeds this into `<input type="time">`
+ * *values*, and the HTML spec fixes that format at 24-hour `HH:MM` whatever the
+ * control renders; the browser localises the display by itself. It is also the
+ * inverse `minutesFromTimeValue` round-trips against, which `time.test.ts`
+ * pins. Reach for `formatClockTime` for anything a reader looks at.
  */
 export function formatMinutesOfDay(minutes: number): string {
-  const total = ((Math.round(minutes) % 1440) + 1440) % 1440;
-  const hour = String(Math.floor(total / 60)).padStart(2, '0');
-  return `${hour}:${String(total % 60).padStart(2, '0')}`;
+  const total = minuteOfDay(minutes);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * A time split into the parts the hub readout draws at different sizes.
+ *
+ * `meridiem` is `null` on a 24-hour clock, which is the default and the format
+ * the dial itself is in.
+ */
+export interface ClockParts {
+  text: string;
+  meridiem: 'AM' | 'PM' | null;
+}
+
+/**
+ * Minutes after midnight → a time a reader looks at, in whichever format they
+ * chose.
+ *
+ * **Parts rather than a string**, because `DigitalReadout` sets the meridiem at
+ * `VISUAL.digital.meridiem.size` — under half the height of the digits — so it
+ * needs the two apart, and no `Intl` formatter hands the meridiem back
+ * separately. That is the whole reason this conversion is written out rather
+ * than delegated. Callers that want a sentence join them with `clockText`.
+ *
+ * The two cases the arithmetic exists to get right are hour 0 → `12 AM` and
+ * hour 12 → `12 PM`; a bare `hour % 12` reads both as zero.
+ *
+ * `'AM'` and `'PM'` are literals rather than localised strings on purpose. A
+ * 12-hour clock is an English-locale convention, and inventing a translation of
+ * the meridiem for a locale that does not use one would be worse than leaving
+ * it in English for the readers who asked for it.
+ */
+export function formatClockTime(minutes: number, hour12: boolean): ClockParts {
+  const total = minuteOfDay(minutes);
+  const hour24 = Math.floor(total / 60);
+  const minute = String(total % 60).padStart(2, '0');
+
+  if (!hour12) {
+    return { text: `${String(hour24).padStart(2, '0')}:${minute}`, meridiem: null };
+  }
+
+  // `|| 12` rather than `% 12`: midnight and noon are both 0 there, and both
+  // are twelve o'clock.
+  return { text: `${hour24 % 12 || 12}:${minute}`, meridiem: hour24 < 12 ? 'AM' : 'PM' };
+}
+
+/** The parts as one string, for the places that speak the time rather than draw it. */
+export function clockText({ text, meridiem }: ClockParts): string {
+  return meridiem === null ? text : `${text} ${meridiem}`;
+}
+
+/**
+ * Cached like `FORMATTERS` above, and for the same reason — constructing an
+ * `Intl.DateTimeFormat` is expensive and the dial asks about one zone on every
+ * tick. Keyed by style as well as zone, since two styles of the same zone are
+ * two formatters.
+ */
+const DATE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
+function dateFormatter(timeZone: string, long: boolean): Intl.DateTimeFormat {
+  const key = `${long ? 'long' : 'short'}|${timeZone}`;
+  let formatter = DATE_FORMATTERS.get(key);
+  if (!formatter) {
+    const style = long ? 'long' : 'short';
+    // The reader's own locale, deliberately — unlike `formatterFor` above,
+    // which pins `en-US` because it parses what it formats. Nothing reads these
+    // back, so the order of the parts is the locale's business: `Thu, 6 Aug` in
+    // en-GB, `Thu, Aug 6` in en-US, `8月6日(木)` in ja-JP. A hand-built template
+    // would be wrong in most of the world.
+    formatter = new Intl.DateTimeFormat(undefined, { timeZone, weekday: style, day: 'numeric', month: style });
+    DATE_FORMATTERS.set(key, formatter);
+  }
+  return formatter;
+}
+
+/**
+ * Today's date at the hub: weekday, day and month, abbreviated, in the dial's
+ * own zone. No year — the reader knows it, and the line is 5.5 units tall.
+ */
+export function formatDialDate(now: Date, timeZone: string): string {
+  return dateFormatter(timeZone, false).format(now);
+}
+
+/**
+ * The same date written out, for the dial's accessible name. The `<svg>` is
+ * `role="img"`, so the label is the only route this date has to a screen
+ * reader, and `Thu, 6 Aug` does not read aloud the way `Thursday 6 August`
+ * does.
+ */
+export function formatSpokenDate(now: Date, timeZone: string): string {
+  return dateFormatter(timeZone, true).format(now);
 }
 
 /**
